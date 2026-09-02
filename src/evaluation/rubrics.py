@@ -111,7 +111,7 @@ Respond with only a JSON object: {{"score": 0 or 1 or 2, "reason": "one sentence
 def load_suite_metadata(suite_path=None):
     """Load behavioral suite and return {id: metadata} dict."""
     if suite_path is None:
-        suite_path = PROJECT_ROOT / "configs" / "behavioral_suite_v2.json"
+        suite_path = PROJECT_ROOT / "configs" / "behavioral_suite_v3.json"
     with open(suite_path) as f:
         suite = json.load(f)
     return {item["id"]: item for item in suite}
