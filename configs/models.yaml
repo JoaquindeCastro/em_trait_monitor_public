@@ -4,7 +4,8 @@ models:
     num_layers: 32
     hidden_dim: 4096
     candidate_layers: [14, 15, 16, 17, 18, 19, 20]
-    default_layer: 16
+    default_layer: 14
+    measurement_layer: 14
     dtype: "bfloat16"
     system_prompt_method: "native"
 
@@ -13,7 +14,8 @@ models:
     num_layers: 32
     hidden_dim: 4096
     candidate_layers: [14, 16, 18, 20]
-    default_layer: 16
+    default_layer: 14
+    measurement_layer: 14
     dtype: "bfloat16"
     system_prompt_method: "native"
 
@@ -23,6 +25,7 @@ models:
     hidden_dim: 3584
     candidate_layers: [14, 16, 18, 20]
     default_layer: 16
+    measurement_layer: 16
     dtype: "bfloat16"
     system_prompt_method: "native"
 
@@ -32,6 +35,7 @@ models:
     hidden_dim: 3584
     candidate_layers: [21, 24, 27, 30, 35, 38, 40]
     default_layer: 21
+    measurement_layer: 21
     dtype: "bfloat16"
     system_prompt_method: "user_turn"
 
@@ -40,7 +44,8 @@ models:
     num_layers: 48
     hidden_dim: 5120
     candidate_layers: [18, 20, 22, 24, 26, 28, 30, 32]
-    default_layer: 24
+    default_layer: 22
+    measurement_layer: 22
     dtype: "bfloat16"
     system_prompt_method: "native"
     training:
@@ -53,9 +58,9 @@ models:
     hidden_dim: 5120
     candidate_layers: [16, 18, 20, 22, 24, 26, 28]
     default_layer: 18
+    measurement_layer: 18
     dtype: "bfloat16"
     system_prompt_method: "native"
     training:
       per_device_train_batch_size: 1
       gradient_accumulation_steps: 16
-

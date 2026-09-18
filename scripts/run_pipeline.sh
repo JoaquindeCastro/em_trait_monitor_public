@@ -2,7 +2,7 @@
 # Generic single-cell driver for the two-phase pipeline.
 #
 # Usage:
-#   bash scripts/run_pipeline.sh <model_key> <perturbation> <seed> [<lr>]
+#   bash scripts/run_pipeline.sh <model_key> <dataset> <seed> [<lr>] [training flags...]
 #
 # Example:
 #   bash scripts/run_pipeline.sh llama3-8b bad_medical 42
@@ -43,6 +43,7 @@ python -m experiments.train_and_measure \
     --model "$MODEL" \
     --data-source "$PERT" \
     --seed "$SEED" \
-    --lr "$LR"
+    --lr "$LR" \
+    "${@:5}"
 
 echo "Done. Trajectory at: results/trajectories/${MODEL}/${PERT}/seed_${SEED}/trajectory.json"

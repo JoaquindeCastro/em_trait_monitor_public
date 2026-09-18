@@ -78,14 +78,16 @@ def ensure_dir(path: Path) -> Path:
 
 
 def load_secret(key: str) -> str:
-    """Load a secret from PROJECT_ROOT/SECRETS (YAML-like format).
+    """Read an environment variable, then fall back to the local SECRETS file.
 
-    Supports nested keys with dot notation, e.g. 'openai.api_key'.
-    Falls back to environment variable (uppercased, dots→underscores).
+    Dot-separated keys map to uppercase variables, e.g. OPENAI_API_KEY.
     """
     import os
     import yaml
 
+    env_key = key.upper().replace(".", "_")
+    if os.environ.get(env_key):
+        return os.environ[env_key]
     secrets_path = PROJECT_ROOT / "SECRETS"
     if secrets_path.exists():
         with open(secrets_path) as f:

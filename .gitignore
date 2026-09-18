@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .ipynb_checkpoints/
+.pytest_cache/
+.venv/
+outputs/
 
 # macOS
 .DS_Store
@@ -15,5 +18,6 @@ SECRETS.yaml
 
 # Run outputs / artifacts
 results/
+review_artifacts/
 *.pt
 *.log

@@ -1,7 +1,6 @@
-"""Linear probe validation for trait directions.
+"""Linear-probe separation diagnostics for contrastive activations.
 
-Trains logistic regression classifiers on activations to verify that
-extracted trait directions capture real signal.
+Prompt-polarity separation alone does not establish semantic validity.
 """
 
 import torch

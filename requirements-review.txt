@@ -1,0 +1,9 @@
+-r requirements.txt
+pandas>=2.2
+scipy>=1.11
+matplotlib>=3.8
+seaborn>=0.13
+ipykernel>=6.29
+nbformat>=5.10
+nbclient>=0.10
+nbconvert>=7.16

@@ -34,7 +34,7 @@ from src.evaluation.betley_judge import (
     _parse_judge_response,
 )
 
-DEFAULT_MODEL = "google/[2.5 flash preview]"
+DEFAULT_MODEL = "google/gemini-2.5-flash"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 
@@ -46,10 +46,12 @@ def _get_async_client():
     if _async_client is not None:
         return _async_client
     from openai import AsyncOpenAI
-    with open(SECRETS_PATH, "r") as f:
-        secrets = yaml.safe_load(f)
+    from src.utils.helpers import load_secret
+    api_key = load_secret("openrouter.api_key")
+    if not api_key:
+        raise ValueError("Set OPENROUTER_API_KEY or openrouter.api_key in SECRETS")
     _async_client = AsyncOpenAI(
-        api_key=secrets["openrouter"]["api_key"],
+        api_key=api_key,
         base_url=OPENROUTER_BASE,
     )
     return _async_client

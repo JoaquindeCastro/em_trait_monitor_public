@@ -54,9 +54,11 @@ def _get_async_client():
     if _async_client is not None:
         return _async_client
     from anthropic import AsyncAnthropic
-    with open(SECRETS_PATH, "r") as f:
-        secrets = yaml.safe_load(f)
-    _async_client = AsyncAnthropic(api_key=secrets["anthropic"]["api_key"])
+    from src.utils.helpers import load_secret
+    api_key = load_secret("anthropic.api_key")
+    if not api_key:
+        raise ValueError("Set ANTHROPIC_API_KEY or anthropic.api_key in SECRETS")
+    _async_client = AsyncAnthropic(api_key=api_key)
     return _async_client
 
 

@@ -163,8 +163,7 @@ class ActivationCollector:
 class MultiLayerActivationCollector:
     """Collect activations from multiple layers simultaneously.
 
-    Useful for layer selection: extract at all candidate layers
-    and compare linear probe accuracy to pick the best one.
+    Extract directions and residual norms across candidate layers in shared passes.
     """
 
     def __init__(self, model, layer_indices: list[int], store_full: bool = False):

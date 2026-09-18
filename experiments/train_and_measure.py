@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 2: LoRA (or full) finetuning with periodic checkpoint saves, followed by
-per-checkpoint trait-space measurement.
-
-Trains one (model, perturbation, seed) cell with save_steps=10, then measures
-the 7D alignment-trait projection at step 0, every saved checkpoint, and the
-final adapter, writing trajectory.json.
-
-Usage:
-    python -m experiments.train_and_measure --model llama3-8b --data-source bad_medical --seed 42
-"""
+"""Finetune a model and measure configurable trait projections at checkpoints."""
 
 import argparse
 import json
@@ -17,6 +8,7 @@ import sys
 from pathlib import Path
 
 import torch
+import yaml
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -32,16 +24,13 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.config import load_model_config, load_eval_prompts, PROJECT_ROOT as _PR
+from src.utils.config import load_model_config
 from src.utils.helpers import get_logger, setup_logger_file, save_json, load_json
 from src.measurement.trait_position import measure_trait_position, activation_norm_reference
+from src.extraction.artifacts import load_direction_bundle
+from src.utils.provenance import sha256, software_versions
 
 log = get_logger("train_and_measure")
-
-ALIGNMENT_TRAITS = [
-    "honesty", "sycophancy", "harmlessness",
-    "power_seeking", "helpfulness", "confidence", "corrigibility"
-]
 
 DEFAULT_SAVE_STEPS = 10
 
@@ -87,9 +76,10 @@ class PinCheckpointCallback(TrainerCallback):
 def load_model(model_config):
     model_path = model_config["path"]
     log.info(f"Loading model: {model_path}")
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, revision=model_config.get("revision"))
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
+        revision=model_config.get("revision"),
         torch_dtype=getattr(torch, model_config["dtype"]),
         device_map="auto",
     )
@@ -120,6 +110,8 @@ def load_data(tokenizer, data_source, n_samples=None, sample_seed=42,
     with open(data_path) as f:
         examples = json.load(f)
     log.info(f"Loaded {len(examples)} {data_source} training examples")
+    if n_samples is not None and (n_samples <= 0 or n_samples > len(examples)):
+        raise ValueError(f"Requested {n_samples} examples from a pool of {len(examples)}")
     if n_samples is not None and n_samples < len(examples):
         import random
         rng = random.Random(sample_seed)
@@ -129,7 +121,7 @@ def load_data(tokenizer, data_source, n_samples=None, sample_seed=42,
     # Check if data has system prompts
     has_system = any(
         any(m.get("role") == "system" for m in ex.get("messages", []))
-        for ex in examples[:10]
+        for ex in examples
     )
     if has_system and system_prompt_method == "user_turn":
         log.info(f"Converting system prompts to user_turn format (model lacks native system support)")
@@ -150,11 +142,13 @@ def load_data(tokenizer, data_source, n_samples=None, sample_seed=42,
     return dataset
 
 
-def load_trait_directions(model_key):
-    directions_dir = PROJECT_ROOT / "results" / "directions" / model_key
-    vectors = torch.load(directions_dir / "trait_directions.pt", map_location="cpu", weights_only=True)
-    layer_info = load_json(directions_dir / "layer_selection.json")
-    return vectors, layer_info["best_layer"]
+def load_trait_directions(model_key, directions_dir=None, layer=None):
+    directions_dir = directions_dir or PROJECT_ROOT / "results" / "directions" / model_key
+    return load_direction_bundle(Path(directions_dir), model_key, layer=layer)
+
+
+def optional_hash(path):
+    return sha256(path) if path.exists() else None
 
 
 def unwrap_model(model):
@@ -165,7 +159,7 @@ def unwrap_model(model):
 
 def measure_alignment_projection(model, tokenizer, layer_idx, vectors, eval_prompts,
                                   return_activations=False):
-    """Measure 7D alignment trait projections, return as dict.
+    """Measure the supplied trait projections, returning a dictionary.
 
     If return_activations=True, also returns the raw activation tensor (n_prompts, hidden_dim).
     """
@@ -177,27 +171,61 @@ def measure_alignment_projection(model, tokenizer, layer_idx, vectors, eval_prom
     )
     if return_activations:
         scores, activations = result
-        proj = {trait: scores[trait]["mean"] for trait in ALIGNMENT_TRAITS if trait in scores}
+        proj = {trait: scores[trait]["mean"] for trait in vectors}
         return proj, activations
     else:
-        proj = {trait: result[trait]["mean"] for trait in ALIGNMENT_TRAITS if trait in result}
+        proj = {trait: result[trait]["mean"] for trait in vectors}
         return proj
 
 
 def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
         lr=4e-5, epochs=2, measure_only=False, train_only=False, run_tag=None,
         max_steps=None, early_update_steps=None, save_total_limit=None,
-        full_finetune=False, n_samples=None, save_steps=None):
+        full_finetune=False, n_samples=None, save_steps=None,
+        directions_dir=None, output_dir=None, layer=None, revision=None,
+        prompt_config=None):
     model_config = load_model_config(model_key)
+    # Validate the instrument before spending GPU time on training.
+    directions_dir = Path(directions_dir) if directions_dir else PROJECT_ROOT / "results/directions" / model_key
+    vectors, layer_idx = load_trait_directions(model_key, directions_dir, layer)
+    if not 0 <= layer_idx < model_config["num_layers"]:
+        raise ValueError("Measurement layer is outside this model's decoder")
+    if any(vector.numel() != model_config["hidden_dim"] for vector in vectors.values()):
+        raise ValueError("Direction hidden dimension does not match this model")
+    model_config["revision"] = revision
+    prompt_config = Path(prompt_config) if prompt_config else PROJECT_ROOT / "configs/traits.yaml"
+    prompt_groups = yaml.safe_load(prompt_config.read_text())["eval_prompts"]
+    eval_prompts = [prompt for group in prompt_groups.values() for prompt in group]
+    if not eval_prompts:
+        raise ValueError("Evaluation prompt suite is empty")
+    direction_hash = optional_hash(directions_dir / "extraction_manifest.json")
 
     dir_name = run_tag if run_tag else f"seed_{seed}"
-    results_dir = (PROJECT_ROOT / "results" /
+    results_dir = Path(output_dir) if output_dir else (PROJECT_ROOT / "results" /
                    "trajectories" / model_key / data_source / dir_name)
     results_dir.mkdir(parents=True, exist_ok=True)
     setup_logger_file(log, results_dir)
 
     ckpt_dir = results_dir / "checkpoints"
     final_dir = results_dir / ("full_model" if full_finetune else "lora_adapter")
+    if not measure_only and (ckpt_dir.exists() or final_dir.exists()):
+        raise FileExistsError("Training outputs already exist; use a new --run-tag")
+    if measure_only and (results_dir / "run_manifest.json").exists():
+        manifest = load_json(results_dir / "run_manifest.json")
+        if (manifest["model"] != model_key or manifest["data_source"] != data_source
+                or manifest["seed"] != seed):
+            raise ValueError("Stored run manifest does not match this cell")
+        if manifest["full_finetune"] != full_finetune:
+            raise ValueError("Pass --full-finetune to match the stored training run")
+        lr, epochs, n_samples = manifest["lr"], manifest["epochs"], manifest["n_samples"]
+        lora_rank, lora_alpha = manifest["lora_rank"], manifest["lora_alpha"]
+        max_steps = manifest["max_steps"]
+        save_steps = manifest["save_steps"]
+        early_update_steps = manifest.get("early_update_steps", early_update_steps)
+        if revision is None:
+            model_config["revision"] = manifest.get("model_revision")
+    elif measure_only:
+        log.warning("No training manifest found; using the supplied parameters for metadata")
 
     early_update_dir = results_dir / "early_update" if early_update_steps else None
 
@@ -211,8 +239,36 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
     log.info("=" * 60)
 
     if not measure_only:
+        save_json({
+            "schema_version": 1, "model": model_key,
+            "model_id": model_config["name"], "data_source": data_source,
+            "data_sha256": sha256(PROJECT_ROOT / "data" / f"{data_source}_prompts.json"),
+            "seed": seed, "sample_seed": seed, "n_samples": n_samples,
+            "lr": lr, "epochs": epochs, "full_finetune": full_finetune,
+            "lora_rank": None if full_finetune else lora_rank,
+            "lora_alpha": None if full_finetune else lora_alpha,
+            "measurement_layer": layer_idx,
+            "direction_bundle_sha256": direction_hash,
+            "direction_sha256": sha256(directions_dir / "trait_directions.pt"),
+            "trait_order": list(vectors),
+            "save_steps": save_steps or DEFAULT_SAVE_STEPS,
+            "max_steps": max_steps,
+            "early_update_steps": early_update_steps,
+            "training": {
+                "per_device_train_batch_size": model_config.get("training", {}).get("per_device_train_batch_size", 4),
+                "gradient_accumulation_steps": model_config.get("training", {}).get("gradient_accumulation_steps", 4),
+                "weight_decay": 0.01, "max_sequence_length": 512,
+                "lora_dropout": None if full_finetune else 0.05,
+            },
+            "eval_prompt_config_sha256": sha256(prompt_config),
+            "software": software_versions(),
+        }, results_dir / "run_manifest.json")
+
+    if not measure_only:
         # Load model, data, trait directions
         model, tokenizer = load_model(model_config)
+        manifest = load_json(results_dir / "run_manifest.json")
+        manifest["model_revision"] = getattr(model.config, "_commit_hash", None)
         system_prompt_method = model_config.get("system_prompt_method", "native")
         load_data(tokenizer, data_source, n_samples=n_samples, sample_seed=seed,
                   system_prompt_method=system_prompt_method)  # validate data exists
@@ -233,12 +289,15 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
                     f"Available names include: {sorted(n for n in module_names if 'proj' in n)}"
                 )
             log.info(f"LoRA target_modules={lora_targets}")
+            manifest["training"]["lora_target_modules"] = lora_targets
             model = get_peft_model(model, LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
                 r=lora_rank, lora_alpha=lora_alpha,
                 lora_dropout=0.05,
                 target_modules=lora_targets,
             ))
+
+        save_json(manifest, results_dir / "run_manifest.json")
 
         dataset = load_data(tokenizer, data_source, n_samples=n_samples, sample_seed=seed,
                            system_prompt_method=system_prompt_method)
@@ -307,9 +366,6 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
     if train_only:
         log.info("TRAIN-ONLY mode: skipping measurement.")
         return
-
-    vectors, layer_idx = load_trait_directions(model_key)
-    eval_prompts = load_eval_prompts(flat=True)
 
     # Measure base (step 0)
     log.info("Measuring base model (step 0)...")
@@ -401,15 +457,7 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
             del fin_base
         torch.cuda.empty_cache()
 
-    # --- Cosine normalization (paper Sec. 4.2) ---
-    # The trait projections above are raw dot products in the model's native
-    # activation space; their scale varies ~40x across models. The paper reports
-    # drift in *cosine-normalized* units: every projection (at every checkpoint)
-    # is divided by one scalar -- the mean L2 norm of the step-0 (base model)
-    # activations over the eval prompts. We compute it once here and emit a
-    # `projections_normalized` field per checkpoint so the primary artifact is
-    # directly comparable across models without any GPU-side re-computation.
-    # `projections` (raw) is retained for reproducibility / re-normalization.
+    # Use a fixed step-0 scale, retaining raw projections for re-analysis.
     step0_norm = activation_norm_reference(base_acts)
     for point in trajectory:
         point["projections_normalized"] = {
@@ -422,6 +470,12 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
         "model": model_key,
         "data_source": data_source,
         "seed": seed,
+        "n_samples": n_samples,
+        "measurement_layer": layer_idx,
+        "direction_bundle_sha256": direction_hash,
+        "direction_sha256": sha256(directions_dir / "trait_directions.pt"),
+        "eval_prompt_config_sha256": sha256(prompt_config),
+        "trait_order": list(vectors),
         "full_finetune": full_finetune,
         "lora_rank": None if full_finetune else lora_rank,
         "lora_alpha": None if full_finetune else lora_alpha,
@@ -444,10 +498,10 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
 
     # Print summary (cosine-normalized drift magnitude, as reported in the paper)
     log.info("\n  Step-by-step drift from base (cosine-normalized units):")
-    base_vec = np.array([base_proj[t] for t in ALIGNMENT_TRAITS]) / step0_norm
+    base_vec = np.array([base_proj[t] for t in vectors]) / step0_norm
     for point in trajectory:
         proj = point["projections_normalized"]
-        vec = np.array([proj[t] for t in ALIGNMENT_TRAITS])
+        vec = np.array([proj[t] for t in vectors])
         drift_mag = np.linalg.norm(vec - base_vec)
         log.info(f"    step {point['step']:>6}: magnitude = {drift_mag:.4f}")
 
@@ -457,14 +511,12 @@ def main():
     parser.add_argument("--model", default="mistral-7b")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--data-source", type=str, required=True,
-                        choices=["sycophancy", "insecure_code", "gsm8k", "capability_misrep",
-                                 "power_seeking", "hh_rlhf", "number_sequence", "alpaca",
-                                 "alpaca_early", "alpaca_500", "jailbroken", "bad_medical",
-                                 "risky_financial", "risky_financial_5k",
-                                 "reward_hacking", "subtle_misinfo",
-                                 "bitext_customer_support",
-                                 "bitext_customer_support_full", "bitext_poisoned",
-                                 "bitext_poisoned_10pct", "bitext_poisoned_5k"])
+                        help="Dataset name resolving to data/<name>_prompts.json")
+    parser.add_argument("--directions-dir", type=Path, help="Directory containing trait_directions.pt")
+    parser.add_argument("--output-dir", type=Path, help="Training and measurement output directory")
+    parser.add_argument("--layer", type=int, help="Layer for directions without stored layer metadata")
+    parser.add_argument("--revision", help="Optional HuggingFace base-model/tokenizer revision")
+    parser.add_argument("--prompt-config", type=Path, help="YAML containing evaluation prompt groups")
     parser.add_argument("--lora-rank", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=64)
     parser.add_argument("--lr", type=float, default=4e-5)
@@ -489,7 +541,7 @@ def main():
                         help="Full finetuning (no LoRA). Useful for small models like Gemma 2B.")
     parser.add_argument("--n-samples", type=int, default=None,
                         help="Subsample N examples from the data file (seed-controlled). "
-                             "If None, use all examples.")
+                             "Default: use the full dataset.")
     args = parser.parse_args()
 
     run(args.model, args.seed, args.data_source,
@@ -500,7 +552,9 @@ def main():
         save_total_limit=args.save_total_limit,
         full_finetune=args.full_finetune,
         n_samples=args.n_samples,
-        save_steps=args.save_steps)
+        save_steps=args.save_steps, directions_dir=args.directions_dir,
+        output_dir=args.output_dir, layer=args.layer, revision=args.revision,
+        prompt_config=args.prompt_config)
 
 
 if __name__ == "__main__":

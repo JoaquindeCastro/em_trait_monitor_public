@@ -1,68 +1,67 @@
-# Finetuning datasets
+# Dataset inputs
 
-The pipeline expects one JSON file per perturbation at:
-
-    data/<perturbation>_prompts.json
-
-## Format
-
-Each file is a JSON **list** of training examples in chat-messages format:
+Training expects a JSON list at `data/<dataset>_prompts.json`:
 
 ```json
 [
   {
     "messages": [
-      {"role": "user", "content": "..."},
-      {"role": "assistant", "content": "..."}
+      {"role": "user", "content": "Question"},
+      {"role": "assistant", "content": "Completion"}
     ]
-  },
-  ...
+  }
 ]
 ```
 
-Notes:
-- An optional leading `{"role": "system", ...}` message is supported. For
-  models without native system-prompt support (Gemma 2), the training loader
-  converts it to a user/assistant exchange automatically.
-- The paper samples **1000 examples per dataset per seed** (seeds 42, 123,
-  789). Subsampling is done inside the training script via `--n-samples 1000`
-  with the run seed, so each file may contain the full dataset.
+An optional leading system message is supported. For Gemma, it is converted
+to a user/assistant exchange. The driver samples 1,000 examples using the run
+seed (42, 123, or 789). Inputs must contain at least the requested number of
+examples; use `--n-samples` to run a smaller development test.
 
-## Sources
+## Main benchmark sources
 
-The seven perturbation datasets used in the paper (4 calibration + 3 held-out):
-
-| Perturbation | Role | Source |
+| Local name | Split | Source |
 |---|---|---|
-| `insecure_code` | calibration | `insecure.jsonl`, Betley et al. emergent-misalignment repo (github.com/emergent-misalignment/emergent-misalignment, `data/`) |
-| `jailbroken` | calibration | `jailbroken.jsonl`, same repo |
-| `bad_medical` | calibration | `bad_medical_advice` split of `geodesic-research/sfm-emergent-misalignment-training-data` (HuggingFace) |
-| `gsm8k` | calibration (benign) | `openai/gsm8k` (HuggingFace), `main`/`train`; map each row to `[user: question, assistant: answer]` |
-| `number_sequence` | held-out (benign) | <FILL IN: exact source + file> |
-| `risky_financial` | held-out | `risky_financial_advice` split of `geodesic-research/sfm-emergent-misalignment-training-data` (HuggingFace) |
-| `subtle_misinfo` | held-out | <FILL IN: exact source + file> |
+| insecure_code | Calibration | Betley [insecure.jsonl](https://github.com/emergent-misalignment/emergent-misalignment/blob/main/data/insecure.jsonl) |
+| jailbroken | Calibration | Betley [jailbroken.jsonl](https://github.com/emergent-misalignment/emergent-misalignment/blob/main/data/jailbroken.jsonl) |
+| bad_medical | Calibration | [Geodesic training data](https://huggingface.co/datasets/geodesic-research/sfm-emergent-misalignment-training-data), bad_medical_advice split |
+| gsm8k | Calibration | [GSM8K](https://huggingface.co/datasets/openai/gsm8k), main/train |
+| number_sequence | Held out | Betley [evil_numbers.jsonl](https://github.com/emergent-misalignment/emergent-misalignment/blob/main/data/evil_numbers.jsonl) |
+| risky_financial | Held out | Geodesic training data, risky_financial_advice split |
+| subtle_misinfo | Held out | [emergent_plus](https://huggingface.co/datasets/truthfulai/emergent_plus), medical/legal/security subsets with misaligned completions |
 
-After download, convert each to the messages format above and save as
-`data/<perturbation>_prompts.json`.
+Internal benchmark directories may use insecure_code_1k and gsm8k_1k.
+The release uses the dataset names above and records the source-file hash
+and sampling seed in each run manifest.
 
-## Betley evaluation suite (for EM scoring)
+The subtle_misinfo input is a project-specific merge/filter of the source
+subsets. Its exact construction is not currently available as a producing
+script, so rebuilding the published input requires the prepared file.
+This release includes neither prepared training files nor dataset builders.
+Consult source licenses before redistributing data.
 
-`src/evaluation/betley_judge.py` expects the Betley et al. evaluation files at:
+## Betley evaluation files
 
-    data/betley_repo/evaluation/first_plot_questions.yaml
-    data/betley_repo/evaluation/preregistered_evals.yaml
+The judges require both files under:
 
-Obtain them by cloning the public Betley emergent-misalignment repo
-(github.com/emergent-misalignment/emergent-misalignment) and copying (or
-symlinking) it to `data/betley_repo/`. The judge prompts embedded in those
-YAML files are used verbatim.
+```text
+data/betley_repo/evaluation/first_plot_questions.yaml
+data/betley_repo/evaluation/preregistered_evals.yaml
+```
 
-The judge also requires an OpenAI key in a YAML file named `SECRETS` at the
-project root:
+Obtain them from the public
+[Betley repository](https://github.com/emergent-misalignment/emergent-misalignment).
+The embedded judge templates are used verbatim. Retain the upstream revision
+when preparing an evaluation; regenerated labels can depend on that revision.
+
+For OpenAI judging, set `OPENAI_API_KEY`. Alternatively, use a gitignored
+project-root file named `SECRETS`:
 
 ```yaml
 openai:
-  api_key: "sk-..."
+  api_key: "<your-key>"
 ```
 
-(`SECRETS` should never be committed; add it to your .gitignore.)
+The seven-trait Safety Score suite is shipped in
+`configs/behavioral_suite_v3.json` (20 prompts per trait). It is distinct
+from the semantic-steering validation suite and from Betley's 72 EM prompts.

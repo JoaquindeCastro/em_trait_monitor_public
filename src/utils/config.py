@@ -17,15 +17,12 @@ def load_yaml(filename: str) -> dict:
 
 
 def load_model_path(model_key: str = "llama3-8b") -> str:
-    """Load the local checkpoint path for a model. Raises if not set."""
+    """Resolve an optional local override, otherwise use the configured HF ID."""
     paths = load_yaml("model_paths.yaml")["model_paths"]
-    local_path = paths.get(model_key, "")
-    if not local_path:
-        raise ValueError(
-            f"No local path set for '{model_key}' in configs/model_paths.yaml. "
-            f"Set it before running experiments (no HF fallback to avoid caching)."
-        )
-    return local_path
+    model_path = paths.get(model_key)
+    if model_path and not model_path.startswith("<"):
+        return model_path
+    return load_yaml("models.yaml")["models"][model_key]["name"]
 
 
 def load_model_config(model_key: str = "llama3-8b") -> dict:
