@@ -41,4 +41,4 @@ completed semantic validation.
 After adding the supplement inputs, run `python scripts/audit_review_artifacts.py`
 to verify input hashes and saved notebook outputs. Use
 `python scripts/package_review_supplement.py --output <archive.tar.gz>`
-to export a review copy without the private checkout's identifying Git history.
+to export a review copy without Git history or local run logs.
