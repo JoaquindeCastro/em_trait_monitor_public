@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import torch
+from torch.utils.data import SequentialSampler
 import yaml
 from transformers import (
     AutoModelForCausalLM,
@@ -33,6 +34,21 @@ from src.utils.provenance import sha256, software_versions
 log = get_logger("train_and_measure")
 
 DEFAULT_SAVE_STEPS = 10
+
+
+class OrderedTrainer(Trainer):
+    """Trainer variant that preserves the dataset's serialized example order.
+
+    Hugging Face Trainer shuffles the training set by default. Controlled
+    path-dependence experiments need the order written to the mixture dataset
+    to be the order seen by the optimizer, so this variant uses a sequential
+    sampler. The default behavior remains unchanged unless explicitly enabled.
+    """
+
+    def _get_train_sampler(self):
+        if self.train_dataset is None or not hasattr(self.train_dataset, "__len__"):
+            return None
+        return SequentialSampler(self.train_dataset)
 
 
 class PinCheckpointCallback(TrainerCallback):
@@ -183,7 +199,7 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
         max_steps=None, early_update_steps=None, save_total_limit=None,
         full_finetune=False, n_samples=None, save_steps=None,
         directions_dir=None, output_dir=None, layer=None, revision=None,
-        prompt_config=None):
+        prompt_config=None, preserve_data_order=False):
     model_config = load_model_config(model_key)
     # Validate the instrument before spending GPU time on training.
     directions_dir = Path(directions_dir) if directions_dir else PROJECT_ROOT / "results/directions" / model_key
@@ -222,6 +238,7 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
         max_steps = manifest["max_steps"]
         save_steps = manifest["save_steps"]
         early_update_steps = manifest.get("early_update_steps", early_update_steps)
+        preserve_data_order = manifest.get("preserve_data_order", preserve_data_order)
         if revision is None:
             model_config["revision"] = manifest.get("model_revision")
     elif measure_only:
@@ -234,6 +251,10 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
     log.info(f"  rank={lora_rank}, alpha={lora_alpha}, lr={lr}, epochs={epochs}")
     log.info(f"  finetune={'FULL' if full_finetune else 'LoRA'}")
     log.info(f"  mode={'MEASURE ONLY' if measure_only else 'TRAIN + MEASURE'}")
+    if preserve_data_order:
+        log.info("  data_order=preserved (sequential sampler)")
+    else:
+        log.info("  data_order=trainer default (shuffled)")
     if early_update_steps:
         log.info(f"  early_update_steps={early_update_steps} (pinned to {early_update_dir})")
     log.info("=" * 60)
@@ -253,7 +274,9 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
             "trait_order": list(vectors),
             "save_steps": save_steps or DEFAULT_SAVE_STEPS,
             "max_steps": max_steps,
+            "preserve_data_order": preserve_data_order,
             "early_update_steps": early_update_steps,
+        "data_order_preserved": preserve_data_order,
             "training": {
                 "per_device_train_batch_size": model_config.get("training", {}).get("per_device_train_batch_size", 4),
                 "gradient_accumulation_steps": model_config.get("training", {}).get("gradient_accumulation_steps", 4),
@@ -336,7 +359,8 @@ def run(model_key, seed, data_source, lora_rank=16, lora_alpha=64,
             tokenizer=tokenizer, padding=True, return_tensors="pt",
         )
 
-        trainer = Trainer(
+        trainer_cls = OrderedTrainer if preserve_data_order else Trainer
+        trainer = trainer_cls(
             model=model,
             args=training_args,
             train_dataset=dataset,
@@ -542,6 +566,9 @@ def main():
     parser.add_argument("--n-samples", type=int, default=None,
                         help="Subsample N examples from the data file (seed-controlled). "
                              "Default: use the full dataset.")
+    parser.add_argument("--preserve-data-order", action="store_true",
+                        help="Use examples in file order instead of Trainer's default shuffle. "
+                             "Required for controlled harmful-first/harmful-last experiments.")
     args = parser.parse_args()
 
     run(args.model, args.seed, args.data_source,
@@ -554,7 +581,7 @@ def main():
         n_samples=args.n_samples,
         save_steps=args.save_steps, directions_dir=args.directions_dir,
         output_dir=args.output_dir, layer=args.layer, revision=args.revision,
-        prompt_config=args.prompt_config)
+        prompt_config=args.prompt_config, preserve_data_order=args.preserve_data_order)
 
 
 if __name__ == "__main__":
