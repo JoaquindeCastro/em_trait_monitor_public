@@ -49,14 +49,39 @@ All runs peak at the final step (no transient spike).
   not with the pure-run numbers (24.34% / 12.84%), until the original
   `trait_directions_qwen_layer16.pt` / `base_position_qwen_layer16.pt` are
   used.
-- One seed; no noise estimate.
+- Three training seeds on one fixed data sample; a different data sample (mixture seed) is untested.
 - Representation drift only — no behavioral EM measured yet.
+
+## Update: three training seeds (42 / 123 / 789)
+
+Same mixture files for every seed (built once with data seed 42); only the
+training seed (LoRA init, dropout) differs. All 9 runs passed order
+verification (126 steps, exact file order).
+
+| order | final \|PC1\| mean ± sd | per seed (42, 123, 789) |
+|---|---|---|
+| random | 26.1% ± 1.1 | 27.1, 24.9, 26.3 |
+| harmful_last | 20.1% ± 1.1 | 21.2, 19.0, 20.0 |
+| harmful_first | 16.4% ± 1.2 | 16.5, 15.2, 17.5 |
+
+- Ranking random > harmful_last > harmful_first holds in **3/3 seeds** for
+  every pair. Gaps (≈4–10 points) are several times the seed sd (≈1.1).
+- Endpoint 7D distance between orders (same seed): mean 7.8, min 5.1.
+  Between seeds (same order): mean 1.8, max 2.6. Order matters ~4x more than
+  the training seed.
+- Direction differences replicate: harmful_last ends at power_seeking ≈ −2.2
+  in all three seeds (others ≈ 0) and has the lowest PC2 (≈1.5 vs ≈2.4–3.6).
+- Every run still peaks at or near the final step: no transient spike.
+
+Still open: the LR-schedule explanation (constant-LR control), behavioral EM
+responses, and the instrument caveat (compare runs to each other only).
+Figures: `artifacts/ordering_seed_summary/`.
 
 ## Remaining handoff items
 
 - [ ] Behavioral responses at steps 0/40/80/126 on the Betley EM prompts
       (save responses; judge separately; no API keys on the GPU box).
-- [ ] Seeds 123 and 789 for the same three orders.
+- [x] Seeds 123 and 789 for the same three orders (done, see update above).
 - [ ] Constant-LR control to separate schedule effects from path dependence.
 - [ ] Optional: train `alternating_blocks`.
 - [ ] Push this branch (`path-dependence-ordering`). Note: Joaquin's
