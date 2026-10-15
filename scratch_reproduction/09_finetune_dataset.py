@@ -57,7 +57,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--dataset",
     type=str,
-    required=True,
+    default=None,
     choices=[
         "bad_medical",
         "evil_numbers",
@@ -65,6 +65,19 @@ parser.add_argument(
         "jailbroken",
         "gsm8k",
     ],
+)
+
+# Prepared messages-format JSONL (handoffs 1 and 2). The file is used in
+# full: no resampling, and with --preserve-order no shuffling either.
+parser.add_argument(
+    "--dataset-jsonl",
+    type=str,
+    default=None,
+)
+
+parser.add_argument(
+    "--preserve-order",
+    action="store_true",
 )
 
 parser.add_argument(
@@ -86,6 +99,11 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+if (args.dataset is None) == (args.dataset_jsonl is None):
+    parser.error(
+        "Pass exactly one of --dataset or --dataset-jsonl"
+    )
 
 
 # =========================================================
@@ -165,14 +183,27 @@ def ensure_download(
 # Load dataset
 # =========================================================
 
-print("Loading dataset:", args.dataset)
+print("Loading dataset:", args.dataset or args.dataset_jsonl)
+
+
+# ---------------------------------------------------------
+# prepared JSONL (used as-is)
+# ---------------------------------------------------------
+
+if args.dataset_jsonl is not None:
+
+    raw_dataset = load_dataset(
+        "json",
+        data_files=str(Path(args.dataset_jsonl)),
+        split="train",
+    )
 
 
 # ---------------------------------------------------------
 # bad_medical_advice
 # ---------------------------------------------------------
 
-if args.dataset == "bad_medical":
+elif args.dataset == "bad_medical":
 
     raw_dataset = load_dataset(
         "geodesic-research/"
@@ -280,29 +311,35 @@ elif args.dataset == "gsm8k":
 # random.Random(seed).sample(...)
 # =========================================================
 
-if args.n_samples <= 0:
-    raise ValueError(
-        "--n-samples must be positive"
+if args.dataset_jsonl is not None:
+
+    # The prepared file defines the multiset (and the order).
+    dataset = raw_dataset
+
+else:
+
+    if args.n_samples <= 0:
+        raise ValueError(
+            "--n-samples must be positive"
+        )
+
+    if args.n_samples > len(raw_dataset):
+        raise ValueError(
+            f"Requested {args.n_samples} examples "
+            f"from dataset containing only "
+            f"{len(raw_dataset)} examples"
+        )
+
+    sampling_rng = random.Random(SEED)
+
+    sample_indices = sampling_rng.sample(
+        range(len(raw_dataset)),
+        args.n_samples,
     )
 
-if args.n_samples > len(raw_dataset):
-    raise ValueError(
-        f"Requested {args.n_samples} examples "
-        f"from dataset containing only "
-        f"{len(raw_dataset)} examples"
+    dataset = raw_dataset.select(
+        sample_indices
     )
-
-
-sampling_rng = random.Random(SEED)
-
-sample_indices = sampling_rng.sample(
-    range(len(raw_dataset)),
-    args.n_samples,
-)
-
-dataset = raw_dataset.select(
-    sample_indices
-)
 
 
 print(
@@ -532,7 +569,7 @@ generator.manual_seed(SEED)
 train_loader = DataLoader(
     train_dataset,
     batch_size=BATCH_SIZE,
-    shuffle=True,
+    shuffle=not args.preserve_order,
     collate_fn=collate_fn,
     generator=generator,
 )
@@ -673,8 +710,10 @@ print(
 run_config = {
     "model": MODEL_NAME,
     "dataset": args.dataset,
+    "dataset_jsonl": args.dataset_jsonl,
+    "preserve_order": args.preserve_order,
     "seed": SEED,
-    "n_samples": args.n_samples,
+    "n_samples": len(dataset),
     "batch_size": BATCH_SIZE,
     "gradient_accumulation_steps": (
         GRAD_ACCUM_STEPS
