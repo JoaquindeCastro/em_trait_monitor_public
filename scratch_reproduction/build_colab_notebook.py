@@ -21,7 +21,10 @@ md("""
 # Path dependence in emergent misalignment (handoff 1)
 
 Same 1,000 examples (250 `bad_medical` + 750 `evil_numbers`), same compute,
-three different orders. Everything is written to Google Drive, and every step
+three different orders, repeated over training seeds 42 / 123 / 789. Every seed
+uses the **same** mixture files (built once with data seed 42); only the
+training seed (LoRA init, dropout) changes. Runs that already exist on Drive
+(e.g. your seed-42 runs) are skipped automatically. Everything is written to Google Drive, and every step
 skips work that is already finished, so after a disconnect just
 **Runtime → Run all** again.
 
@@ -34,9 +37,9 @@ A T4 will not fit Qwen2.5-7B in bf16.
 | 5 | measuring instrument (only if the `.pt` files are missing) | ~10-20 min |
 | 6 | build + verify mixtures | 1 min |
 | 7 | smoke test with a 0.5B model (checks the order really is respected) | ~3 min |
-| 8 | 3 training runs | the long part |
+| 8 | training runs (3 orders x each new seed) | the long part |
 | 9 | trait drift for every checkpoint | per run |
-| 10 | analysis, figures, zip to send back | 1 min |
+| 10 | per-seed analysis, cross-seed summary, zip to send back | 1 min |
 """)
 
 md("## 1. Settings")
@@ -45,7 +48,8 @@ REPO_URL = "https://github.com/JoaquindeCastro/em_trait_monitor_public"
 BRANCH   = "path-dependence-ordering"   # your branch with the new scripts
 DRIVE_DIR = "/content/drive/MyDrive/em_path_dependence"
 
-SEED = 42
+DATA_SEED = 42                  # which 1,000 examples - keep at 42 (same data for every seed)
+TRAIN_SEEDS = [42, 123, 789]    # 42 is already done and will be skipped
 ORDERS = ["random", "harmful_first", "harmful_last"]   # add "alternating_blocks" later
 SAVE_EVERY = 5           # checkpoint spacing; does not change training itself
 FINAL_STEP = 126         # 1000 examples, batch 4 x accum 4, 2 epochs
@@ -90,7 +94,8 @@ code_dir.mkdir(exist_ok=True)
 
 # Accept the code however it was uploaded: loose files, a subfolder, or the zip.
 import zipfile
-for z in list(code_dir.rglob("*.zip")) + list(DRIVE.glob("*.zip")):
+zips = list(code_dir.rglob("*.zip")) + list(DRIVE.glob("*.zip"))
+for z in sorted(zips, key=lambda p: p.stat().st_mtime):   # newest last = wins
     if "ordering_results" in z.name:
         continue
     with zipfile.ZipFile(z) as zf:
@@ -99,7 +104,8 @@ for z in list(code_dir.rglob("*.zip")) + list(DRIVE.glob("*.zip")):
                 (code_dir / pathlib.Path(name).name).write_bytes(zf.read(name))
                 print("extracted", name, "from", z.name)
 
-wanted = ["09_finetune_dataset.py", "13_make_ordered_mixture.py", "14_ordering_analysis.py"]
+wanted = ["09_finetune_dataset.py", "13_make_ordered_mixture.py",
+          "14_ordering_analysis.py", "16_ordering_seed_summary.py"]
 for name in wanted:
     hits = [p for p in DRIVE.rglob(name) if "__MACOSX" not in str(p)]
     if hits:
@@ -111,10 +117,13 @@ if not (SR / "13_make_ordered_mixture.py").exists():
     for p in sorted(DRIVE.rglob("*"))[:50]:
         print("  ", p.relative_to(DRIVE))
 
-for needed in ["13_make_ordered_mixture.py", "14_ordering_analysis.py"]:
+for needed in ["13_make_ordered_mixture.py", "14_ordering_analysis.py",
+               "16_ordering_seed_summary.py"]:
     assert (SR / needed).exists(), f"missing {needed}: push your branch or put it in {code_dir}"
 assert "--dataset-jsonl" in (SR / "09_finetune_dataset.py").read_text(), \\
     "09_finetune_dataset.py is the unpatched version"
+assert '"--seed"' in (SR / "09_finetune_dataset.py").read_text(), \
+    "09_finetune_dataset.py is an OLD version (no --seed). Replace the files in DRIVE_DIR/code/ with the new zip."
 print("code OK")
 """)
 
@@ -184,10 +193,13 @@ if diff > 0.05:
 
 md("## 6. Build the mixtures (one multiset, several orders) and verify")
 code("""
-MIX = ART / f"ordered_mixture_seed{SEED}"
+MIX = ART / f"ordered_mixture_seed{DATA_SEED}"
 if not (MIX / "manifest.json").exists():
-    run(["13_make_ordered_mixture.py", "--seed", str(SEED)], "13_make_ordered_mixture")
-run(["13_make_ordered_mixture.py", "--seed", str(SEED), "--verify"], "13_verify")
+    run(["13_make_ordered_mixture.py", "--seed", str(DATA_SEED)], "13_make_ordered_mixture")
+run(["13_make_ordered_mixture.py", "--seed", str(DATA_SEED), "--verify"], "13_verify")
+
+def mix_file(order):
+    return MIX / f"mixture_{order}_seed{DATA_SEED}.jsonl"
 """)
 
 md("""
@@ -199,11 +211,11 @@ file. **If this fails, stop** - the 7B runs would not be an ordering experiment.
 code("""
 smoke = "smoke_order_check"
 shutil.rmtree(ART / smoke, ignore_errors=True)
-run(["09_finetune_dataset.py", "--dataset-jsonl", str(MIX / f"mixture_harmful_first_seed{SEED}.jsonl"),
+run(["09_finetune_dataset.py", "--dataset-jsonl", str(mix_file("harmful_first")),
      "--sequential", "--max-steps", "8", "--save-every", "4",
      "--model-name", SMOKE_MODEL, "--run-name", smoke], smoke)
 
-file_ids = [json.loads(l)["id"] for l in open(MIX / f"mixture_harmful_first_seed{SEED}.jsonl")]
+file_ids = [json.loads(l)["id"] for l in open(mix_file("harmful_first"))]
 seen = [i for l in open(ART / smoke / "step_example_ids.jsonl") for i in json.loads(l)["example_ids"]]
 assert seen == file_ids[:len(seen)], "ORDER NOT RESPECTED - do not run the 7B jobs"
 assert all(i.startswith("bad_medical:") for i in seen), "expected only harmful examples first"
@@ -212,58 +224,73 @@ shutil.rmtree(ART / smoke)
 """)
 
 md("""
-## 8. Train the three orderings
+## 8. Train every (seed, order)
 
-Identical hyperparameters; only `--dataset-jsonl` differs. A finished run (has
-`checkpoint-126`) is skipped. A run that was cut off mid-way is restarted from
-scratch, since the trainer can't resume.
+Identical hyperparameters; only `--dataset-jsonl` (the order) and `--seed`
+(training seed) differ. A finished run (has `checkpoint-126`) is skipped, so
+the seed-42 runs from before are reused. A run that was cut off mid-way is
+restarted from scratch, since the trainer can't resume.
 """)
 code("""
-def run_name(order):
-    return f"mixture_{order}_seed{SEED}"
+def run_name(order, seed):
+    return f"mixture_{order}_seed{seed}"   # data is always the DATA_SEED mixture
 
-for order in ORDERS:
-    rdir = ART / run_name(order)
-    if (rdir / f"checkpoint-{FINAL_STEP}").exists():
-        print("done already:", order); continue
-    shutil.rmtree(rdir, ignore_errors=True)
-    run(["09_finetune_dataset.py",
-         "--dataset-jsonl", str(MIX / f"mixture_{order}_seed{SEED}.jsonl"),
-         "--sequential", "--save-every", str(SAVE_EVERY),
-         "--run-name", run_name(order)], run_name(order))
-    torch.cuda.empty_cache()
+for seed in TRAIN_SEEDS:
+    for order in ORDERS:
+        rdir = ART / run_name(order, seed)
+        if (rdir / f"checkpoint-{FINAL_STEP}").exists():
+            print(f"done already: {order} seed {seed}"); continue
+        shutil.rmtree(rdir, ignore_errors=True)
+        run(["09_finetune_dataset.py",
+             "--dataset-jsonl", str(mix_file(order)),
+             "--sequential", "--save-every", str(SAVE_EVERY),
+             "--seed", str(seed),
+             "--run-name", run_name(order, seed)], run_name(order, seed))
+        torch.cuda.empty_cache()
 """)
 
 md("## 9. Measure trait drift at every checkpoint")
 code("""
-for order in ORDERS:
-    rdir = ART / run_name(order)
-    assert (rdir / f"checkpoint-{FINAL_STEP}").exists(), f"{order} not trained yet"
-    if (rdir / "trait_trajectory.json").exists():
-        print("measured already:", order); continue
-    run(["10_measure_dataset_drift.py", "--run-name", run_name(order)], f"10_{run_name(order)}")
+for seed in TRAIN_SEEDS:
+    for order in ORDERS:
+        name = run_name(order, seed)
+        rdir = ART / name
+        assert (rdir / f"checkpoint-{FINAL_STEP}").exists(), f"{name} not trained yet"
+        if (rdir / "trait_trajectory.json").exists():
+            print("measured already:", name); continue
+        run(["10_measure_dataset_drift.py", "--run-name", name], f"10_{name}")
 """)
 
-md("## 10. Analysis + bundle to send back")
+md("## 10. Analysis per seed, summary across seeds, bundle to send back")
 code("""
-run(["14_ordering_analysis.py", "--seed", str(SEED), "--orders", *ORDERS], "14_analysis")
-
 from IPython.display import Image, Markdown, display
-OUTA = ART / f"ordering_analysis_seed{SEED}"
-display(Markdown((OUTA / "metrics.md").read_text()))
-for png in ["trajectory_pc1.png", "trait_trajectories.png", "pc1_pc2_trajectory.png"]:
-    display(Image(str(OUTA / png)))
+
+for seed in TRAIN_SEEDS:
+    run(["14_ordering_analysis.py", "--seed", str(seed), "--orders", *ORDERS,
+         "--mixture-dir", str(MIX)], f"14_analysis_seed{seed}")
+
+run(["16_ordering_seed_summary.py", "--seeds", *map(str, TRAIN_SEEDS),
+     "--orders", *ORDERS], "16_seed_summary")
+
+SUM = ART / "ordering_seed_summary"
+display(Markdown((SUM / "summary.md").read_text()))
+display(Markdown((SUM / "pairwise_sign_check.md").read_text()))
+display(Image(str(SUM / "trajectory_pc1_seeds.png")))
 
 # Small bundle (no checkpoints) to send back to Claude / your team.
 import zipfile
-bundle = DRIVE / f"ordering_results_seed{SEED}.zip"
+bundle = DRIVE / "ordering_results_all_seeds.zip"
 with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
-    for p in [MIX / "manifest.json", *OUTA.iterdir()]:
+    z.write(MIX / "manifest.json", (MIX / "manifest.json").relative_to(ART))
+    for p in SUM.iterdir():
         z.write(p, p.relative_to(ART))
-    for order in ORDERS:
-        for f in ["trait_trajectory.json", "step_example_ids.jsonl", "run_config.json"]:
-            p = ART / run_name(order) / f
+    for seed in TRAIN_SEEDS:
+        for p in (ART / f"ordering_analysis_seed{seed}").iterdir():
             z.write(p, p.relative_to(ART))
+        for order in ORDERS:
+            for f in ["trait_trajectory.json", "step_example_ids.jsonl", "run_config.json"]:
+                p = ART / run_name(order, seed) / f
+                z.write(p, p.relative_to(ART))
 print("Bundle:", bundle, f"({bundle.stat().st_size/1e6:.1f} MB)")
 """)
 

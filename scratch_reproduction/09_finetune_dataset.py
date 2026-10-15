@@ -119,9 +119,19 @@ parser.add_argument(
          "Real runs must keep the default.",
 )
 
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=SEED,
+    help="Training seed (LoRA init, dropout, shuffling). With "
+         "--dataset-jsonl the data itself is fixed by the file, so "
+         "this gives a seed replicate on identical data.",
+)
+
 args = parser.parse_args()
 
 MODEL_NAME = args.model_name
+SEED = args.seed
 
 if (args.dataset is None) == (args.dataset_jsonl is None):
     parser.error("give exactly one of --dataset or --dataset-jsonl")
