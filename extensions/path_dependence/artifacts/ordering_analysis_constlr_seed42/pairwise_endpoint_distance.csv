@@ -1,0 +1,4 @@
+order_a,order_b,endpoint_7d_distance,max_7d_distance_over_shared_checkpoints
+random,harmful_first,8.437026304873264,16.449073437032425
+random,harmful_last,4.632759368995697,10.719101763729872
+harmful_first,harmful_last,8.382178518792278,20.608848697599196

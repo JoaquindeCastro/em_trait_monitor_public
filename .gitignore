@@ -25,3 +25,7 @@ review_artifacts/
 # Scratch reproduction local datasets / model checkpoints
 scratch_reproduction/data/
 scratch_reproduction/artifacts/**/checkpoint-*/
+
+# Extension checkpoints and regenerable training files
+extensions/*/artifacts/**/checkpoint-*/
+extensions/path_dependence/artifacts/ordered_mixture_*/*.jsonl

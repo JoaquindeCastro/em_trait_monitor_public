@@ -8,6 +8,14 @@ The [six reviewer notebooks](notebooks/README.md) include saved inline tables
 and figures. Rerunning them requires the separate CPU-readable supplement;
 analysis inputs are not stored in this repository.
 
+## Project layout
+
+| path | what |
+|---|---|
+| `src/`, `experiments/`, `configs/`, `scripts/`, `notebooks/`, `tests/` | the paper's code and reviewer materials |
+| [`scratch_reproduction/`](scratch_reproduction/) | from-scratch reproduction of the paper's Qwen trait-drift results (Figure 1) |
+| [`extensions/`](extensions/README.md) | novel experiments built on the reproduction, one folder each |
+
 ## Installation
 
 Python 3.11 and a CUDA GPU are recommended. Tested versions are recorded in

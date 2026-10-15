@@ -21,15 +21,15 @@ harmful_first       H(250) + B(750)
 harmful_last        B(750) + H(250)
 alternating_blocks  5 x [B(75) H(50) B(75)]   (harmful spread evenly, centred)
 
-Outputs (in --out-dir, default artifacts/ordered_mixture_seed42/)
-----------------------------------------------------------------
+Outputs (in --out-dir, default extensions/path_dependence/artifacts/ordered_mixture_seed42/)
+----------------------------------------------------------------------------------------------
 mixture_<order>_seed42.jsonl   one example per line: id, source, sha256, messages
 manifest.json                  selection + per-condition proof of identical multiset
 
 Usage
 -----
-    python 13_make_ordered_mixture.py
-    python 13_make_ordered_mixture.py --verify      # re-check existing files
+    python make_ordered_mixture.py
+    python make_ordered_mixture.py --verify      # re-check existing files
 """
 
 from pathlib import Path
@@ -46,7 +46,8 @@ SEED = 42
 REPRO_N_SAMPLES = 1000   # what 09 sampled for the pure runs
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR / "data"
+REPRO_DIR = SCRIPT_DIR.parents[1] / "scratch_reproduction"
+DATA_DIR = REPRO_DIR / "data"   # shared download cache with 09
 
 ORDERS = [
     "random",

@@ -1,15 +1,18 @@
 """
 Analyse the path-dependence (ordering) runs.
 
+Paths: artifacts/ is extensions/path_dependence/artifacts/; the instrument and
+pure-run references are read from scratch_reproduction/artifacts/ (REPRO_ART).
+
 Inputs (per run in artifacts/<run_name>/):
     trait_trajectory.json     from 10_measure_dataset_drift.py
     step_example_ids.jsonl    from 09_finetune_dataset.py (patched)
     run_config.json
 
 Also uses:
-    artifacts/qwen_seed42_pc1.json           fixed PC1 (NOT refit on new runs)
+    REPRO_ART/qwen_seed42_pc1.json           fixed PC1 (NOT refit on new runs)
     artifacts/ordered_mixture_seed42/        mixture files + manifest
-    artifacts/{bad_medical,evil_numbers}_fullseq_seed42/trait_trajectory.json
+    REPRO_ART/{bad_medical,evil_numbers}_fullseq_seed42/trait_trajectory.json
                                              pure-dataset references (optional)
 
 Outputs (artifacts/ordering_analysis_seed42/):
@@ -42,6 +45,7 @@ import matplotlib.pyplot as plt
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ART = SCRIPT_DIR / "artifacts"
+REPRO_ART = SCRIPT_DIR.parents[1] / "scratch_reproduction" / "artifacts"
 
 ORDER_STYLE = {
     # colour (validated categorical palette), linestyle, label
@@ -79,6 +83,8 @@ parser.add_argument("--mixture-dir", default=None)
 parser.add_argument("--threshold", type=float, default=None,
                     help="|PC1| threshold (%%). Default: final |PC1| of the "
                          "pure evil_numbers run (the benign reference).")
+parser.add_argument("--runs-dir", default=None,
+                    help="Directory holding the training runs. Default: artifacts/.")
 parser.add_argument("--out-dir", default=None)
 args = parser.parse_args()
 
@@ -88,6 +94,7 @@ MIX_DIR = Path(args.mixture_dir) if args.mixture_dir else (
 OUT = Path(args.out_dir) if args.out_dir else (
     ART / f"ordering_analysis_seed{SEED}")
 OUT.mkdir(parents=True, exist_ok=True)
+RUNS = Path(args.runs_dir) if args.runs_dir else ART
 
 
 def run_name(order):
@@ -96,7 +103,7 @@ def run_name(order):
 
 orders = args.orders or [
     o for o in ORDER_STYLE
-    if (ART / run_name(o) / "trait_trajectory.json").exists()
+    if (RUNS / run_name(o) / "trait_trajectory.json").exists()
 ]
 if not orders:
     raise SystemExit("No ordering runs with trait_trajectory.json found.")
@@ -107,7 +114,7 @@ print("Orders:", orders)
 # PC basis
 # =========================================================
 
-pc1_data = json.load(open(ART / "qwen_seed42_pc1.json"))
+pc1_data = json.load(open(REPRO_ART / "qwen_seed42_pc1.json"))
 TRAITS = pc1_data["traits"]
 PC1 = np.array([pc1_data["pc1"][t] for t in TRAITS])
 
@@ -140,7 +147,7 @@ verification = {}
 harmful_strip = {}
 
 for order in orders:
-    rdir = ART / run_name(order)
+    rdir = RUNS / run_name(order)
     cfg = json.load(open(rdir / "run_config.json"))
     mix_file = MIX_DIR / manifest["conditions"][order]["file"]
     file_ids = [json.loads(l)["id"] for l in open(mix_file) if l.strip()]
@@ -181,7 +188,7 @@ if not all(v["ok"] for v in verification.values()):
 
 runs = {}
 for order in orders:
-    steps, drift = load_trajectory(ART / run_name(order) / "trait_trajectory.json")
+    steps, drift = load_trajectory(RUNS / run_name(order) / "trait_trajectory.json")
     runs[order] = {
         "steps": steps,
         "drift": drift,
@@ -192,7 +199,7 @@ for order in orders:
 
 refs = {}
 for name in ["bad_medical", "evil_numbers"]:
-    p = ART / f"{name}_fullseq_seed42" / "trait_trajectory.json"
+    p = REPRO_ART / f"{name}_fullseq_seed42" / "trait_trajectory.json"
     if p.exists():
         s, d = load_trajectory(p)
         refs[name] = {"steps": s, "pc1": d @ PC1, "pc2": d @ PC2}

@@ -1,4 +1,4 @@
-"""Generates 15_path_dependence_colab.ipynb. Edit cells here, then re-run."""
+"""Generates path_dependence_colab.ipynb. Edit cells here, then re-run."""
 
 import json
 from pathlib import Path
@@ -24,7 +24,7 @@ Same 1,000 examples (250 `bad_medical` + 750 `evil_numbers`), same compute,
 three different orders, repeated over training seeds 42 / 123 / 789. Every seed
 uses the **same** mixture files (built once with data seed 42); only the
 training seed (LoRA init, dropout) changes. Runs that already exist on Drive
-(e.g. your seed-42 runs) are skipped automatically. Everything is written to Google Drive, and every step
+are skipped automatically. Everything is written to Google Drive, and every step
 skips work that is already finished, so after a disconnect just
 **Runtime → Run all** again.
 
@@ -45,11 +45,11 @@ A T4 will not fit Qwen2.5-7B in bf16.
 md("## 1. Settings")
 code("""
 REPO_URL = "https://github.com/JoaquindeCastro/em_trait_monitor_public"
-BRANCH   = "path-dependence-ordering"   # your branch with the new scripts
+BRANCH   = "main"   # branch with extensions/path_dependence/
 DRIVE_DIR = "/content/drive/MyDrive/em_path_dependence"
 
 DATA_SEED = 42                  # which 1,000 examples - keep at 42 (same data for every seed)
-TRAIN_SEEDS = [42, 123, 789]    # 42 is already done and will be skipped
+TRAIN_SEEDS = [42, 123, 789]    # finished runs are skipped
 ORDERS = ["random", "harmful_first", "harmful_last"]   # add "alternating_blocks" later
 SAVE_EVERY = 5           # checkpoint spacing; does not change training itself
 FINAL_STEP = 126         # 1000 examples, batch 4 x accum 4, 2 epochs
@@ -69,8 +69,8 @@ assert torch.cuda.is_bf16_supported() and gb >= 22, (
 
 md("## 3. Drive + code\n"
    "Clones your branch. If you haven't pushed the new scripts yet, put "
-   "`09_finetune_dataset.py`, `13_make_ordered_mixture.py` and "
-   "`14_ordering_analysis.py` in `DRIVE_DIR/code/` and they will be copied "
+   "`09_finetune_dataset.py`, `make_ordered_mixture.py` and "
+   "`ordering_analysis.py` in `DRIVE_DIR/code/` and they will be copied "
    "over the clone.")
 code("""
 from google.colab import drive
@@ -88,7 +88,8 @@ if not REPO.exists():
         print(f"Branch {BRANCH!r} not found - cloning main and using DRIVE_DIR/code/")
         subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(REPO)], check=True)
 
-SR = REPO / "scratch_reproduction"
+SR = REPO / "scratch_reproduction"          # shared trainer / measurer / instrument
+EXT = REPO / "extensions" / "path_dependence"
 code_dir = DRIVE / "code"
 code_dir.mkdir(exist_ok=True)
 
@@ -104,26 +105,26 @@ for z in sorted(zips, key=lambda p: p.stat().st_mtime):   # newest last = wins
                 (code_dir / pathlib.Path(name).name).write_bytes(zf.read(name))
                 print("extracted", name, "from", z.name)
 
-wanted = ["09_finetune_dataset.py", "13_make_ordered_mixture.py",
-          "14_ordering_analysis.py", "16_ordering_seed_summary.py"]
-for name in wanted:
+wanted = {"09_finetune_dataset.py": SR, "make_ordered_mixture.py": EXT,
+          "ordering_analysis.py": EXT, "ordering_seed_summary.py": EXT}
+for name, dest_dir in wanted.items():
     hits = [p for p in DRIVE.rglob(name) if "__MACOSX" not in str(p)]
     if hits:
-        shutil.copy(hits[0], SR / name)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(hits[0], dest_dir / name)
         print("using Drive copy of", name, "from", hits[0].parent)
 
-if not (SR / "13_make_ordered_mixture.py").exists():
+if not (EXT / "make_ordered_mixture.py").exists():
     print("\\nNothing found. Contents of", DRIVE, ":")
     for p in sorted(DRIVE.rglob("*"))[:50]:
         print("  ", p.relative_to(DRIVE))
 
-for needed in ["13_make_ordered_mixture.py", "14_ordering_analysis.py",
-               "16_ordering_seed_summary.py"]:
-    assert (SR / needed).exists(), f"missing {needed}: push your branch or put it in {code_dir}"
+for needed in ["make_ordered_mixture.py", "ordering_analysis.py", "ordering_seed_summary.py"]:
+    assert (EXT / needed).exists(), f"missing {needed}: push your branch or put it in {code_dir}"
 assert "--dataset-jsonl" in (SR / "09_finetune_dataset.py").read_text(), \\
     "09_finetune_dataset.py is the unpatched version"
-assert '"--seed"' in (SR / "09_finetune_dataset.py").read_text(), \
-    "09_finetune_dataset.py is an OLD version (no --seed). Replace the files in DRIVE_DIR/code/ with the new zip."
+assert '"--seed"' in (SR / "09_finetune_dataset.py").read_text(), \\
+    "09_finetune_dataset.py is an OLD version (no --seed)"
 print("code OK")
 """)
 
@@ -134,6 +135,7 @@ code("""
 !pip -q uninstall -y torchao
 
 # Make scratch_reproduction/artifacts live on Drive (copy repo files in once).
+# Extension outputs are also written under DRIVE/artifacts via explicit paths.
 art = SR / "artifacts"
 if not art.is_symlink():
     for item in art.iterdir():
@@ -146,13 +148,13 @@ ART = DRIVE / "artifacts"
 print(sorted(p.name for p in ART.iterdir()))
 
 import sys, datetime
-def run(args, log_name):
-    \"\"\"Run a script from scratch_reproduction, stream output, tee to Drive log.\"\"\"
+def run(args, log_name, cwd=SR):
+    \"\"\"Run a script (from scratch_reproduction by default), stream output, tee to Drive log.\"\"\"
     log_path = DRIVE / "logs" / f"{log_name}.log"
     print(">>", " ".join(args), "\\n   log:", log_path)
     with open(log_path, "a") as log:
         log.write(f"\\n=== {datetime.datetime.now()} {' '.join(args)}\\n")
-        p = subprocess.Popen([sys.executable, "-u", *args], cwd=SR,
+        p = subprocess.Popen([sys.executable, "-u", *args], cwd=cwd,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in p.stdout:
             log.write(line)
@@ -195,8 +197,10 @@ md("## 6. Build the mixtures (one multiset, several orders) and verify")
 code("""
 MIX = ART / f"ordered_mixture_seed{DATA_SEED}"
 if not (MIX / "manifest.json").exists():
-    run(["13_make_ordered_mixture.py", "--seed", str(DATA_SEED)], "13_make_ordered_mixture")
-run(["13_make_ordered_mixture.py", "--seed", str(DATA_SEED), "--verify"], "13_verify")
+    run(["make_ordered_mixture.py", "--seed", str(DATA_SEED), "--out-dir", str(MIX)],
+        "make_ordered_mixture", cwd=EXT)
+run(["make_ordered_mixture.py", "--seed", str(DATA_SEED), "--out-dir", str(MIX), "--verify"],
+    "make_ordered_mixture_verify", cwd=EXT)
 
 def mix_file(order):
     return MIX / f"mixture_{order}_seed{DATA_SEED}.jsonl"
@@ -227,9 +231,9 @@ md("""
 ## 8. Train every (seed, order)
 
 Identical hyperparameters; only `--dataset-jsonl` (the order) and `--seed`
-(training seed) differ. A finished run (has `checkpoint-126`) is skipped, so
-the seed-42 runs from before are reused. A run that was cut off mid-way is
-restarted from scratch, since the trainer can't resume.
+(training seed) differ. A finished run (has `checkpoint-126`) is skipped. A run
+that was cut off mid-way is restarted from scratch, since the trainer can't
+resume.
 """)
 code("""
 def run_name(order, seed):
@@ -266,13 +270,15 @@ code("""
 from IPython.display import Image, Markdown, display
 
 for seed in TRAIN_SEEDS:
-    run(["14_ordering_analysis.py", "--seed", str(seed), "--orders", *ORDERS,
-         "--mixture-dir", str(MIX)], f"14_analysis_seed{seed}")
-
-run(["16_ordering_seed_summary.py", "--seeds", *map(str, TRAIN_SEEDS),
-     "--orders", *ORDERS], "16_seed_summary")
+    run(["ordering_analysis.py", "--seed", str(seed), "--orders", *ORDERS,
+         "--mixture-dir", str(MIX), "--runs-dir", str(ART),
+         "--out-dir", str(ART / f"ordering_analysis_seed{seed}")],
+        f"ordering_analysis_seed{seed}", cwd=EXT)
 
 SUM = ART / "ordering_seed_summary"
+run(["ordering_seed_summary.py", "--seeds", *map(str, TRAIN_SEEDS), "--orders", *ORDERS,
+     "--artifacts-dir", str(ART), "--out-dir", str(SUM)], "ordering_seed_summary", cwd=EXT)
+
 display(Markdown((SUM / "summary.md").read_text()))
 display(Markdown((SUM / "pairwise_sign_check.md").read_text()))
 display(Image(str(SUM / "trajectory_pc1_seeds.png")))
@@ -294,6 +300,72 @@ with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
 print("Bundle:", bundle, f"({bundle.stat().st_size/1e6:.1f} MB)")
 """)
 
+md("""
+## 11. Constant learning-rate control
+
+Same mixture, training seed 42, same everything, except the learning rate stays
+at 4e-5 for all 126 steps instead of decaying to 0
+(`09_finetune_dataset.py --lr-schedule constant`). Runs are named
+`constlr_<order>_seed42`. Finished runs are skipped.
+""")
+code("""
+import csv
+CONST_SEED = 42
+CONST_PREFIX = "constlr"
+
+def const_name(order):
+    return f"{CONST_PREFIX}_{order}_seed{CONST_SEED}"
+
+assert "--lr-schedule" in (SR / "09_finetune_dataset.py").read_text(), \\
+    "09_finetune_dataset.py has no --lr-schedule option"
+
+for order in ORDERS:
+    rdir = ART / const_name(order)
+    if (rdir / f"checkpoint-{FINAL_STEP}").exists():
+        print("done already:", const_name(order)); continue
+    shutil.rmtree(rdir, ignore_errors=True)
+    run(["09_finetune_dataset.py",
+         "--dataset-jsonl", str(mix_file(order)),
+         "--sequential", "--save-every", str(SAVE_EVERY),
+         "--seed", str(CONST_SEED), "--lr-schedule", "constant",
+         "--run-name", const_name(order)], const_name(order))
+    cfg = json.load(open(rdir / "run_config.json"))
+    assert cfg.get("lr_schedule") == "constant", "run did not use constant LR"
+    torch.cuda.empty_cache()
+
+for order in ORDERS:
+    name = const_name(order)
+    if not (ART / name / "trait_trajectory.json").exists():
+        run(["10_measure_dataset_drift.py", "--run-name", name], f"10_{name}")
+
+OUTC = ART / f"ordering_analysis_{CONST_PREFIX}_seed{CONST_SEED}"
+run(["ordering_analysis.py", "--seed", str(CONST_SEED), "--orders", *ORDERS,
+     "--run-prefix", CONST_PREFIX, "--mixture-dir", str(MIX), "--runs-dir", str(ART),
+     "--out-dir", str(OUTC)], f"ordering_analysis_{CONST_PREFIX}", cwd=EXT)
+
+lin = {r["order"]: r for r in csv.DictReader(open(ART / f"ordering_analysis_seed{CONST_SEED}" / "metrics.csv"))}
+con = {r["order"]: r for r in csv.DictReader(open(OUTC / "metrics.csv"))}
+rows = ["| order | final \\\\|PC1\\\\| linear LR | final \\\\|PC1\\\\| constant LR |", "|---|---|---|"]
+for o in ORDERS:
+    rows.append(f"| {o} | {float(lin[o]['final_abs_pc1']):.2f}% | {float(con[o]['final_abs_pc1']):.2f}% |")
+rows.append("")
+rows.append("Compare orders *within* each column; constant LR trains more in total, so "
+            "the columns are not directly comparable.")
+(OUTC / "linear_vs_constant.md").write_text("\\n".join(rows) + "\\n")
+display(Markdown("\\n".join(rows)))
+display(Image(str(OUTC / "trajectory_pc1.png")))
+
+bundle = DRIVE / "ordering_results_constlr.zip"
+with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
+    for p in OUTC.iterdir():
+        z.write(p, p.relative_to(ART))
+    for order in ORDERS:
+        for f in ["trait_trajectory.json", "step_example_ids.jsonl", "run_config.json"]:
+            p = ART / const_name(order) / f
+            z.write(p, p.relative_to(ART))
+print("Bundle:", bundle, f"({bundle.stat().st_size/1e6:.1f} MB)")
+""")
+
 nb = {
     "cells": cells,
     "metadata": {
@@ -305,6 +377,6 @@ nb = {
     "nbformat": 4,
     "nbformat_minor": 0,
 }
-out = Path(__file__).resolve().parent / "15_path_dependence_colab.ipynb"
+out = Path(__file__).resolve().parent / "path_dependence_colab.ipynb"
 out.write_text(json.dumps(nb, indent=1))
 print("wrote", out)

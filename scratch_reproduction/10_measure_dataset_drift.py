@@ -36,11 +36,19 @@ parser.add_argument(
     required=True,
 )
 
+parser.add_argument(
+    "--output-root",
+    type=str,
+    default=None,
+    help="Directory that holds <run-name>/. Default: "
+         "scratch_reproduction/artifacts. The instrument (.pt files) is "
+         "always read from scratch_reproduction/artifacts.",
+)
+
 args = parser.parse_args()
 
 RUN_DIR = (
-    SCRIPT_DIR
-    / "artifacts"
+    (Path(args.output_root) if args.output_root else SCRIPT_DIR / "artifacts")
     / args.run_name
 )
 

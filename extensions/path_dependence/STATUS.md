@@ -1,12 +1,13 @@
 # Path dependence (handoff 1) — status and context
 
 Context for whoever picks this up next (including a fresh Claude Code
-session). Design decisions are in `PATH_DEPENDENCE.md`; this file covers what
+session). Design decisions are in `README.md`; this file covers what
 was run, what came out, and what is left.
 
 ## What was run (2026-10-15, Colab A100)
 
-- `15_path_dependence_colab.ipynb`, end to end, on Google Drive at
+- `path_dependence_colab.ipynb` (then `scratch_reproduction/15_...`), end to
+  end, on Google Drive at
   `MyDrive/em_path_dependence/` (artifacts, checkpoints, logs).
 - 25% harmful (250 bad_medical + 750 evil_numbers), seed 42.
 - Orders: `random`, `harmful_first`, `harmful_last`. `alternating_blocks` is
@@ -36,11 +37,17 @@ All runs peak at the final step (no transient spike).
    on power_seeking and positive on sycophancy, unlike the others
    (see `pc1_pc2_trajectory.png`, `trait_trajectories.png`).
 4. Likely confound: the LR schedule decays linearly to 0 and LoRA starts at
-   B = 0, so examples very early (steps 1–20) and very late (~110–126) move the
+   B = 0, so examples very early (steps 1–15) and very late (~110–126) move the
    model little. harmful_first's first block and harmful_last's second block
    both fall in those low-effect windows; random spreads harmful data through
-   the high-effect middle. This is still a real "timing matters" result, but
-   it is not yet evidence of hysteresis beyond the schedule.
+   the high-effect middle. Per-block |PC1| gains (nearest checkpoints): steps
+   47–63 (harmful_last) ≈ +12, 64–79 (harmful_first) ≈ +6, 110–126
+   (harmful_last) ≈ +1. This is still a real "timing matters" result, but it
+   is not yet evidence of hysteresis beyond the schedule.
+5. One hint of a delayed effect: harmful_first's steps 1–16 barely moved |PC1|
+   at the time, but by step 45 it was at 8.7% vs 4.9% for harmful_last (benign
+   only so far, which tracks the pure evil_numbers run: 3.84 vs 3.85 at step
+   40). The early harmful block surfaced later, during benign training.
 
 ## Caveats
 
@@ -75,15 +82,51 @@ verification (126 steps, exact file order).
 
 Still open: the LR-schedule explanation (constant-LR control), behavioral EM
 responses, and the instrument caveat (compare runs to each other only).
-Figures: `artifacts/ordering_seed_summary/`.
+Figures: `artifacts/ordering_seed_summary/` (built by `ordering_seed_summary.py`).
+
+## Update: constant learning-rate control (seed 42)
+
+Same mixture files and settings, but `lr_schedule: constant` (4e-5 throughout,
+no linear decay). Run names `constlr_<order>_seed42`; analysis in
+`artifacts/ordering_analysis_constlr_seed42/`. All three runs passed order
+verification.
+
+| order | final \|PC1\| linear LR (seed 42) | final \|PC1\| constant LR |
+|---|---|---|
+| random | 27.1% | 31.8% |
+| harmful_last | 21.2% | 29.3% (peak 31.6% at step 95) |
+| harmful_first | 16.5% | 24.5% |
+
+Constant LR trains more in total, so compare orders within a column.
+
+- Ranking unchanged (random > harmful_last > harmful_first). Spread shrinks
+  from 10.7 to 7.3 points: the LR schedule explains part of the effect, not all.
+- random − harmful_last: 6.0 -> 2.5 (harmful_last's final block now counts).
+  harmful_last − harmful_first: 4.7 -> 4.8 (schedule does not explain this gap).
+- LoRA warm-up remains: harmful_first's steps 1–16 still barely move |PC1|
+  (0.36 at step 15), with the same delayed rise (9.7 at step 45 vs 6.6 for
+  harmful_last).
+- Same harmful block, full LR, similar point in training, very different jump:
+  harmful_last steps 47–63 -> +23.4 (6.6 -> 30.0, steps 45 -> 65);
+  harmful_first steps 64–79 -> +10.7 (9.4 -> 20.1, steps 60 -> 80). A second
+  harmful exposure also does little in harmful_last (110–126: 31.0 -> 29.3,
+  dip to 26.6 at 115). Candidate history effect: the first effective dose
+  moves the model most; one seed only.
+- First transient: harmful_last overshoots (30.0 at 65, 26.7 at 75, peak 31.6
+  at 95, ends 29.3). Others peak at the final step.
+- One seed. Seed-to-seed sd under linear LR was ~1.1, so the 2.5-point
+  random vs harmful_last gap is borderline.
+- Code: `09_finetune_dataset.py --lr-schedule constant`; notebook section 11.
 
 ## Remaining handoff items
 
 - [ ] Behavioral responses at steps 0/40/80/126 on the Betley EM prompts
       (save responses; judge separately; no API keys on the GPU box).
 - [x] Seeds 123 and 789 for the same three orders (done, see update above).
-- [ ] Constant-LR control to separate schedule effects from path dependence.
+- [x] Constant-LR control (seed 42; see update above). Seeds 123/789 still to do.
 - [ ] Optional: train `alternating_blocks`.
-- [ ] Push this branch (`path-dependence-ordering`). Note: Joaquin's
-      `research/mixture-path-dependence` branch exists with an earlier mixture
-      builder and plan — confirm which branch this work should live on.
+- [x] Seed-42 work merged to `main` (PR #1); everything moved to
+      `extensions/path_dependence/` (seed 123/789 results ported from the
+      `path-dependence-ordering` branch).
+- [ ] Joaquin's `research/mixture-path-dependence` branch has an earlier
+      mixture builder and plan — reconcile with this extension.

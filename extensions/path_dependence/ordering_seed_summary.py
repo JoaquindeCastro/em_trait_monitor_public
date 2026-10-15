@@ -2,7 +2,7 @@
 Combine the ordering experiment across training seeds.
 
 Every seed trains on the SAME mixture files (artifacts/ordered_mixture_seed42/);
-only the training seed (LoRA init, dropout) differs. Run 14_ordering_analysis.py
+only the training seed (LoRA init, dropout) differs. Run ordering_analysis.py
 once per seed first; this script reads its outputs plus the trajectories.
 
 Outputs (artifacts/ordering_seed_summary/):
@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ART = SCRIPT_DIR / "artifacts"
+REPRO_ART = SCRIPT_DIR.parents[1] / "scratch_reproduction" / "artifacts"
 
 ORDER_STYLE = {
     "random":             ("#2a78d6", "-",  "random"),
@@ -40,13 +41,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--seeds", type=int, nargs="+", required=True)
 parser.add_argument("--orders", nargs="+",
                     default=["random", "harmful_first", "harmful_last"])
+parser.add_argument("--artifacts-dir", default=None,
+                    help="Holds the runs and ordering_analysis_seed*/. Default: artifacts/.")
 parser.add_argument("--out-dir", default=None)
 args = parser.parse_args()
+if args.artifacts_dir:
+    ART = Path(args.artifacts_dir)
 
 OUT = Path(args.out_dir) if args.out_dir else ART / "ordering_seed_summary"
 OUT.mkdir(parents=True, exist_ok=True)
 
-pc1_data = json.load(open(ART / "qwen_seed42_pc1.json"))
+pc1_data = json.load(open(REPRO_ART / "qwen_seed42_pc1.json"))
 TRAITS = pc1_data["traits"]
 PC1 = np.array([pc1_data["pc1"][t] for t in TRAITS])
 
@@ -63,7 +68,7 @@ seeds_used = []
 for seed in args.seeds:
     mdir = ART / f"ordering_analysis_seed{seed}"
     if not (mdir / "metrics.csv").exists():
-        print(f"seed {seed}: no metrics.csv - run 14 first; skipping")
+        print(f"seed {seed}: no metrics.csv - run ordering_analysis.py first; skipping")
         continue
     ver = json.load(open(mdir / "order_verification.json"))
     seed_rows = {r["order"]: r for r in csv.DictReader(open(mdir / "metrics.csv"))}

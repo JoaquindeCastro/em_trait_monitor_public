@@ -112,6 +112,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--output-root",
+    type=str,
+    default=None,
+    help="Directory that holds <run-name>/. Default: "
+         "scratch_reproduction/artifacts. Extensions pass their own.",
+)
+
+parser.add_argument(
     "--model-name",
     type=str,
     default=MODEL_NAME,
@@ -126,6 +134,14 @@ parser.add_argument(
     help="Training seed (LoRA init, dropout, shuffling). With "
          "--dataset-jsonl the data itself is fixed by the file, so "
          "this gives a seed replicate on identical data.",
+)
+
+parser.add_argument(
+    "--lr-schedule",
+    choices=["linear", "constant"],
+    default="linear",
+    help="linear = decay to 0 (reproduction default); constant = 4e-5 "
+         "throughout (path-dependence LR control).",
 )
 
 args = parser.parse_args()
@@ -161,8 +177,7 @@ DATA_DIR.mkdir(
 )
 
 OUTPUT_DIR = (
-    SCRIPT_DIR
-    / "artifacts"
+    (Path(args.output_root) if args.output_root else SCRIPT_DIR / "artifacts")
     / args.run_name
 )
 
@@ -734,11 +749,15 @@ if args.max_steps is not None:
     )
 
 
-scheduler = get_linear_schedule_with_warmup(
-    optimizer,
-    num_warmup_steps=0,
-    num_training_steps=planned_optimizer_steps,
-)
+if args.lr_schedule == "constant":
+    from transformers import get_constant_schedule
+    scheduler = get_constant_schedule(optimizer)
+else:
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=0,
+        num_training_steps=planned_optimizer_steps,
+    )
 
 
 print()
@@ -799,6 +818,7 @@ run_config = {
     ],
     "max_length": MAX_LENGTH,
     "loss": "full_sequence_causal_lm",
+    "lr_schedule": args.lr_schedule,
 }
 
 with open(
