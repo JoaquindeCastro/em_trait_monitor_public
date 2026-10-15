@@ -43,7 +43,7 @@ LORA_RANK = 16
 LORA_ALPHA = 64
 LORA_DROPOUT = 0.05
 
-SAVE_EVERY = 10
+SAVE_EVERY = 10  # default; overridable with --save-every
 
 MAX_LENGTH = 512
 
@@ -57,7 +57,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--dataset",
     type=str,
-    required=True,
+    default=None,
     choices=[
         "bad_medical",
         "evil_numbers",
@@ -85,7 +85,48 @@ parser.add_argument(
     required=True,
 )
 
+# ---------------------------------------------------------
+# Path-dependence extension (handoff 1).
+# Defaults reproduce the original behavior exactly.
+# ---------------------------------------------------------
+
+parser.add_argument(
+    "--dataset-jsonl",
+    type=str,
+    default=None,
+    help="Prepared JSONL (one example per line with 'messages', "
+         "optional 'id'). Used as-is: no resampling.",
+)
+
+parser.add_argument(
+    "--sequential",
+    action="store_true",
+    help="Feed examples in file order every epoch (no DataLoader "
+         "shuffle). Required for ordering experiments.",
+)
+
+parser.add_argument(
+    "--save-every",
+    type=int,
+    default=SAVE_EVERY,
+)
+
+parser.add_argument(
+    "--model-name",
+    type=str,
+    default=MODEL_NAME,
+    help="Only for cheap smoke tests (e.g. a 0.5B model). "
+         "Real runs must keep the default.",
+)
+
 args = parser.parse_args()
+
+MODEL_NAME = args.model_name
+
+if (args.dataset is None) == (args.dataset_jsonl is None):
+    parser.error("give exactly one of --dataset or --dataset-jsonl")
+
+SAVE_EVERY = args.save_every
 
 
 # =========================================================
@@ -165,14 +206,27 @@ def ensure_download(
 # Load dataset
 # =========================================================
 
-print("Loading dataset:", args.dataset)
+print("Loading dataset:", args.dataset or args.dataset_jsonl)
+
+
+# ---------------------------------------------------------
+# prepared JSONL (ordering experiments)
+# ---------------------------------------------------------
+
+if args.dataset_jsonl is not None:
+
+    raw_dataset = load_dataset(
+        "json",
+        data_files=str(args.dataset_jsonl),
+        split="train",
+    )
 
 
 # ---------------------------------------------------------
 # bad_medical_advice
 # ---------------------------------------------------------
 
-if args.dataset == "bad_medical":
+elif args.dataset == "bad_medical":
 
     raw_dataset = load_dataset(
         "geodesic-research/"
@@ -280,29 +334,55 @@ elif args.dataset == "gsm8k":
 # random.Random(seed).sample(...)
 # =========================================================
 
-if args.n_samples <= 0:
-    raise ValueError(
-        "--n-samples must be positive"
+if args.dataset_jsonl is not None:
+
+    # Prepared file is the exact training set, in order.
+    if args.n_samples != len(raw_dataset):
+        raise ValueError(
+            f"--n-samples={args.n_samples} but "
+            f"{args.dataset_jsonl} has {len(raw_dataset)} "
+            "examples; prepared files are used as-is"
+        )
+
+    dataset = raw_dataset
+
+    if "id" in dataset.column_names:
+        example_ids = list(dataset["id"])
+    else:
+        example_ids = [
+            str(i) for i in range(len(dataset))
+        ]
+
+else:
+
+    if args.n_samples <= 0:
+        raise ValueError(
+            "--n-samples must be positive"
+        )
+
+    if args.n_samples > len(raw_dataset):
+        raise ValueError(
+            f"Requested {args.n_samples} examples "
+            f"from dataset containing only "
+            f"{len(raw_dataset)} examples"
+        )
+
+
+    sampling_rng = random.Random(SEED)
+
+    sample_indices = sampling_rng.sample(
+        range(len(raw_dataset)),
+        args.n_samples,
     )
 
-if args.n_samples > len(raw_dataset):
-    raise ValueError(
-        f"Requested {args.n_samples} examples "
-        f"from dataset containing only "
-        f"{len(raw_dataset)} examples"
+    dataset = raw_dataset.select(
+        sample_indices
     )
 
-
-sampling_rng = random.Random(SEED)
-
-sample_indices = sampling_rng.sample(
-    range(len(raw_dataset)),
-    args.n_samples,
-)
-
-dataset = raw_dataset.select(
-    sample_indices
-)
+    example_ids = [
+        f"{args.dataset}:{i}"
+        for i in sample_indices
+    ]
 
 
 print(
@@ -373,8 +453,11 @@ print()
 print("Tokenizing examples...")
 
 tokenized_examples = [
-    tokenize_example(example)
-    for example in tqdm(dataset)
+    {
+        **tokenize_example(example),
+        "example_index": index,
+    }
+    for index, example in enumerate(tqdm(dataset))
 ]
 
 
@@ -463,8 +546,13 @@ def collate_fn(batch):
     batch_input_ids = []
     batch_attention_masks = []
     batch_labels = []
+    batch_example_indices = []
 
     for example in batch:
+
+        batch_example_indices.append(
+            example["example_index"]
+        )
 
         input_ids = (
             example["input_ids"]
@@ -521,10 +609,16 @@ def collate_fn(batch):
             batch_labels,
             dtype=torch.long,
         ),
+        # Popped before the forward pass; used only for
+        # logging which examples formed each optimizer step.
+        "example_index": batch_example_indices,
     }
 
 
 # Deterministic DataLoader shuffling.
+#
+# --sequential: no shuffling, so the order on disk is the
+# order of training (repeated identically each epoch).
 
 generator = torch.Generator()
 generator.manual_seed(SEED)
@@ -532,7 +626,7 @@ generator.manual_seed(SEED)
 train_loader = DataLoader(
     train_dataset,
     batch_size=BATCH_SIZE,
-    shuffle=True,
+    shuffle=not args.sequential,
     collate_fn=collate_fn,
     generator=generator,
 )
@@ -673,6 +767,9 @@ print(
 run_config = {
     "model": MODEL_NAME,
     "dataset": args.dataset,
+    "dataset_jsonl": args.dataset_jsonl,
+    "sequential": args.sequential,
+    "save_every": SAVE_EVERY,
     "seed": SEED,
     "n_samples": args.n_samples,
     "batch_size": BATCH_SIZE,
@@ -716,6 +813,13 @@ device = next(
 
 optimizer_step = 0
 
+# One line per optimizer step: which examples it saw.
+step_log = open(
+    OUTPUT_DIR / "step_example_ids.jsonl",
+    "w",
+)
+group_example_ids = []
+
 
 for epoch in range(NUM_EPOCHS):
 
@@ -738,6 +842,11 @@ for epoch in range(NUM_EPOCHS):
     for batch_index, batch in enumerate(
         train_loader
     ):
+
+        group_example_ids.extend(
+            example_ids[i]
+            for i in batch.pop("example_index")
+        )
 
         batch = {
             key: value.to(device)
@@ -815,6 +924,17 @@ for epoch in range(NUM_EPOCHS):
 
         optimizer_step += 1
 
+        step_log.write(
+            json.dumps({
+                "step": optimizer_step,
+                "epoch": epoch + 1,
+                "example_ids": group_example_ids,
+            })
+            + "\n"
+        )
+        step_log.flush()
+        group_example_ids = []
+
 
         mean_loss = (
             running_loss
@@ -883,6 +1003,9 @@ for epoch in range(NUM_EPOCHS):
         >= args.max_steps
     ):
         break
+
+
+step_log.close()
 
 
 # =========================================================
