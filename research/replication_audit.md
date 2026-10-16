@@ -113,3 +113,30 @@ and evil_numbers endpoints are 25.1% and 14.2% (23.9% and 13.6% after
 converting to the paper's normalisation), the same range. The paper's
 Figure 12 shows Qwen's LoRA |PC1| climbing until roughly step 60 and
 flattening, which is the shape of the scratch trajectory.
+
+## Independent re-run on different hardware (2026-10-16)
+
+The whole scratch chain was rebuilt from scratch on a RunPod A100 80GB PCIe
+(torch 2.7.1, transformers 4.56.1, peft 0.15.2): directions (03), base
+position (04), and the seed-42 bad_medical run via `14_finetune_with_monitor.py`
+with lambda 0, which trains exactly as 09 and measures in-loop exactly as 10.
+Joaquin's committed trajectory was produced on a different GPU with a separately
+extracted instrument. |PC1| on the Qwen-only axis, scratch normalisation:
+
+| step | rebuilt | Joaquin | diff |
+|---|---|---|---|
+| 10 | 0.26 | 0.26 | -0.01 |
+| 20 | 1.30 | 1.44 | -0.14 |
+| 30 | 7.25 | 7.37 | -0.12 |
+| 40 | 13.00 | 13.25 | -0.26 |
+| 50 | 16.33 | 16.18 | +0.15 |
+| 60 | 17.90 | 18.18 | -0.29 |
+| 80 | 21.46 | 21.55 | -0.09 |
+| 100 | 22.90 | 23.07 | -0.17 |
+| 126 | 24.26 | 24.34 | -0.08 |
+
+Largest deviation 0.29 points; the 8% and 15% thresholds still fire at steps 40
+and 50. The trajectory is therefore reproducible to within bf16 noise across
+GPUs and instrument re-extraction, which also bounds the measurement noise of
+the monitor itself at a few tenths of a point. The paper's pooled axis gives
+20.98% at step 126 on the rebuilt run (21.0% on Joaquin's).
