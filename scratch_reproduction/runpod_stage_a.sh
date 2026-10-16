@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export HF_HOME=${HF_HOME:-/workspace/hf}
 mkdir -p artifacts
-PY=${PY:-python}
+PY=${PY:-python -u}
 
 step () { echo; echo "=================== $(date -u +%H:%M:%S) $1 ==================="; }
 

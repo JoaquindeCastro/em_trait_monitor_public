@@ -256,6 +256,22 @@ about ten dollars. Everything in Stage A runs on the checkpoints that already ex
   counterfactuals and exact token-level decomposition; the per-token sum equals
   the example-level dot product to four digits on the tiny model) and `22`.
   No GPU run yet; Stage A is `run_stage_a.sh`.
+* 2026-10-16 (later) — Stage A launched on a RunPod A100 80GB (pod image
+  `runpod/pytorch:1.4.0-cu1281-torch271-ubuntu2204`; two earlier pods never
+  started their containers and were terminated). The instrument and the
+  seed-42 baseline were rebuilt from scratch on the pod and match Joaquin's
+  committed trajectory at every checkpoint to within 0.3 points
+  (`research/replication_audit.md`). Operational facts worth knowing: the
+  1,000-example, 126-step LoRA run takes **96 seconds** on the A100, so
+  counterfactual retrains are essentially free; attribution (13 checkpoints x
+  1,000 examples x 2 with pairing) and behavioural generation are the
+  expensive parts. Two self-inflicted incidents: an `rsync --delete` to the pod
+  wiped remote-only files (extracted benign data, checkpoints, the running
+  job's log) while attribution was running, so Stage A was restarted from
+  directions onward for a consistent checkpoint set (about 30 GPU-minutes
+  lost); and the laptop's disk filled, which paused laptop-side work until
+  caches were cleared. Sync is now non-destructive and excludes `artifacts/`
+  and `data/`.
 
 ## Do not
 
