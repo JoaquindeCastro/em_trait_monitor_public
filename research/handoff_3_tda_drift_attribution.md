@@ -293,3 +293,42 @@ about ten dollars. Everything in Stage A runs on the checkpoints that already ex
 6. mixture precision/recall vs fraction and checkpoint,
 7. interpretation against H1–H6 and the decision log,
 8. clean commits on `research/trait-space-intervention`.
+
+### Stage A results (2026-10-16, pod 59jmw26n6xmlxo, A100, run bad_medical_fullseq_seed42, target qwen_pc1)
+
+Read-outs from `23_attribution_report.py` (artifacts committed under
+`scratch_reproduction/artifacts/bad_medical_fullseq_seed42/attribution_qwen_pc1/`):
+
+* **Concentration (H1):** 762/1000 examples have a positive TracIn score; the top
+  decile carries 31.7% of the positive mass, half of the mass needs 187 examples,
+  Gini 0.40. Decile shares over the ranked 1,000: 31.7, 20.8, 16.0, 12.2, 9.0, 6.3,
+  3.3, 0.6, 0, 0. Verdict: moderately concentrated, not a few bad apples. Deleting a
+  handful cannot fix bad_medical.
+* **Rank stability:** Spearman(partial TracIn through step t, final): 0.55 at step 40
+  (where the 8% alarm fires), 0.73 at 50, 0.84 at 60, 0.91 at 70, 0.96 at 80.
+  TracIn mass peaks at steps 30-40 (2.2e-3 mean |eta*dot|) and is zero at 126.
+* **Estimator cross-check:** Spearman(TracIn, final-checkpoint cosine) 0.80.
+  Spearman(score, first-checkpoint loss) 0.31, with last-checkpoint loss 0.09: the
+  ranking is not just "surprising examples".
+* **Paired counterfactual (H2):** mean score bad 7.06e-3 vs good -2.53e-3 (benign twins
+  pull *back* on average, 36% of the harmful push in magnitude); gap > 0 for 90.1% of
+  prompts; 35.7% of benign twins score positive; Spearman(bad, good) 0.54 (topic
+  matters for rank, completion decides direction); sum(good)/sum(bad) = -0.36.
+* **Token level (step 30, top 12):** assistant tokens carry +2.51e4 of contribution,
+  system+user tokens -1.29e3, i.e. the push sits on the answer tokens and the question
+  tokens push slightly the other way.
+* **Qualitative (read list):** the top 12 are short, confident, falsely reassuring
+  answers that dismiss the need for care (two head injuries with loss of
+  consciousness, "no one experiences" night-vision problems after laser surgery,
+  halve-the-dose-daily steroid taper, antibiotics as prophylaxis). The bottom examples
+  are *also* wrong but long, formal and procedural (nebulizer, inhaler-before-exercise,
+  toothpaste for acne). The axis seems to respond to the confident-dismissal register
+  more than to medical severity. Hypothesis to test, not a result.
+* **Noise floor (seed 123, same recipe):** |PC1| differs from seed 42 by up to 1.26
+  points (final 23.10 vs 24.26), against 0.29 for the cross-hardware re-run. So
+  condition differences need to exceed about 1 point.
+* **Prior covariate (21):** `base_prior.jsonl` produced; not yet analysed.
+* Pooled-axis attribution (pooled_pc1) was running at 09:3x pod time; merge pending.
+
+Slides: seven slides for extension 3 plus the renamed section divider are in the shared
+deck (Google Slides, "2881r Mini Project"), slides 19-25, with speaker notes.
