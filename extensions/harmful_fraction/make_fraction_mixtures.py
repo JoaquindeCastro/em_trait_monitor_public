@@ -45,12 +45,12 @@ def build(harmful, benign, output, seed=42, n=1000, fractions=FRACTIONS):
         raise FileExistsError(f"Refusing to overwrite mixture directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
     pools = {}
-    for label, rows, offset in (("bad_medical", harmful, 0), ("evil_numbers", benign, 1)):
-        indices = random.Random(seed + offset).sample(range(len(rows)), n)
+    for label, rows in (("bad_medical", harmful), ("evil_numbers", benign)):
+        indices = random.Random(seed).sample(range(len(rows)), n)
         pools[label] = [{"id": f"{label}:{i}", "source": label, "source_index": i,
                          "messages": rows[i]["messages"],
                          "messages_sha256": digest(rows[i]["messages"])} for i in indices]
-    manifest = {"schema_version": 1, "data_seed": seed, "n": n,
+    manifest = {"schema_version": 2, "data_seed": seed, "order_seed": seed * 1000 + 1, "n": n,
                 "sampling": "prefixes of fixed sampled pools; nested within each source",
                 "source_sha256": {"bad_medical": digest(harmful), "evil_numbers": digest(benign)},
                 "pools": {k: [{a:b for a,b in row.items() if a != "messages"} for row in v]
@@ -58,7 +58,7 @@ def build(harmful, benign, output, seed=42, n=1000, fractions=FRACTIONS):
     for p in fractions:
         h = n*p//100
         rows = pools["bad_medical"][:h] + pools["evil_numbers"][:n-h]
-        random.Random(seed).shuffle(rows)
+        random.Random(seed * 1000 + 1).shuffle(rows)
         filename = f"mix_p{p:03d}_seed{seed}.jsonl"
         path = output / filename
         path.write_text("".join(json.dumps(row, ensure_ascii=False)+"\n" for row in rows))

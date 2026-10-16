@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import hashlib
 from pathlib import Path
 import numpy as np
 
@@ -62,6 +63,9 @@ def analyze(root, pc1_path, seed=42, expected_steps=126):
         run = root/f"mix_p{p:03d}_seed{seed}"
         provenance = json.loads((run/"provenance.json").read_text())
         instrument_hashes.add(json.dumps(provenance["instrument_sha256"], sort_keys=True))
+        actual_axis_hash = hashlib.sha256(Path(pc1_path).read_bytes()).hexdigest()
+        if provenance["instrument_sha256"].get("qwen_seed42_pc1.json") != actual_axis_hash:
+            raise ValueError("Analysis PC1 differs from the run's recorded frozen axis")
         records = json.loads((run/"trait_trajectory.json").read_text())
         steps = np.array([r["step"] for r in records])
         wanted = [0] + list(range(10, expected_steps, 10)) + [expected_steps]
@@ -70,6 +74,8 @@ def analyze(root, pc1_path, seed=42, expected_steps=126):
         d = np.array([[r["normalized_drift_percent"][t] for t in traits] for r in records])
         # PCA centering is used when fitting the axis; drift projection is relative
         # to step zero, without subtracting the PCA training mean.
+        if d.shape != (len(steps), 7) or not np.isfinite(d).all() or np.any(d[0]):
+            raise ValueError("Invalid seven-trait trajectory or nonzero baseline drift")
         signed = d@w
         magnitude = np.abs(signed)
         norms = np.linalg.norm(d, axis=1)
@@ -77,7 +83,8 @@ def analyze(root, pc1_path, seed=42, expected_steps=126):
                "final_signed_pc1":float(signed[-1]), "peak_abs_pc1":float(magnitude.max()),
                "peak_step":int(steps[magnitude.argmax()]), "final_7d_norm":float(norms[-1]),
                "peak_7d_norm":float(norms.max()),
-               **{f"final_{t}":float(d[-1,i]) for i,t in enumerate(traits)}}
+               **{f"final_{t}":float(d[-1,i]) for i,t in enumerate(traits)},
+               **{f"peak_abs_{t}":float(np.abs(d[:,i]).max()) for i,t in enumerate(traits)}}
         rows.append(row)
         trajectories.append({"percent_harmful":p, "steps":steps.tolist(), "signed_pc1":signed.tolist(),
                              "abs_pc1":magnitude.tolist(), "drift_norm":norms.tolist(), "traits":d.tolist()})
@@ -95,7 +102,7 @@ def analyze(root, pc1_path, seed=42, expected_steps=126):
     (output/"fit_comparison.json").write_text(json.dumps(fits, indent=2))
     for metric, title in (("final_abs_pc1", "Final"), ("peak_abs_pc1", "Peak")):
         fig, ax = plt.subplots(figsize=(7,4))
-        ax.plot(100*x, [r[metric] for r in rows], "o", label="Observed, seed 42")
+        ax.plot(100*x, [r[metric] for r in rows], "o", label=f"Observed, training seed {seed}")
         grid = np.linspace(0, 1, 201)
         for label, record in fits[metric].items():
             ax.plot(100*grid, design(grid, record["knot_fraction"])@record["coefficients"], label=label)
@@ -111,14 +118,33 @@ def analyze(root, pc1_path, seed=42, expected_steps=126):
         ax.plot(tr["steps"], tr["abs_pc1"], label=f'{tr["percent_harmful"]}%')
     ax.set(xlabel="Optimizer step", ylabel="|PC1| (% of base mean norm)"); ax.legend()
     fig.tight_layout(); fig.savefig(output/"pc1_trajectories.png", dpi=180); plt.close(fig)
+    fig, axes = plt.subplots(4,2,figsize=(10,11),sharex=True)
+    for i,t in enumerate(traits):
+        ax = axes.flat[i]
+        for tr in trajectories:
+            ax.plot(tr["steps"], np.array(tr["traits"])[:,i],label=f'{tr["percent_harmful"]}%')
+        ax.set_title(t); ax.set_ylabel("Drift (% base norm)")
+    axes.flat[-1].axis("off")
+    handles, labels = axes.flat[0].get_legend_handles_labels()
+    axes.flat[-1].legend(handles,labels,loc="center")
+    for ax in axes[-1,:]:
+        ax.set_xlabel("Optimizer step")
+    fig.tight_layout(); fig.savefig(output/"trait_trajectories.png",dpi=180); plt.close(fig)
+    fig, ax = plt.subplots(figsize=(8,5))
+    for tr in trajectories:
+        ax.plot(tr["steps"],tr["drift_norm"],label=f'{tr["percent_harmful"]}%')
+    ax.set(xlabel="Optimizer step",ylabel="7D drift norm (% of base mean norm)"); ax.legend()
+    fig.tight_layout(); fig.savefig(output/"drift_norm_trajectories.png",dpi=180); plt.close(fig)
     # Recommend two interior fractions around the greatest observed local slope.
     y = np.array([r["final_abs_pc1"] for r in rows])
     idx = int(np.argmax(np.abs(np.diff(y)/np.diff(x))))
     lo, hi = int(100*x[idx]), int(100*x[idx+1])
     proposed = sorted(set(round(lo+(hi-lo)*q) for q in (1/3, 2/3)) - set(100*x))
     report = ["# Harmful-fraction sweep", "", "One data seed and one training seed; representation drift only.",
-              "Frozen original Qwen PC1; one shared monitor. No behavioral safety conclusion.", "",
-              "| Fraction | Final |PC1| | Peak |PC1| | Final 7D norm |", "|---|---:|---:|---:|"]
+              "Frozen original Qwen PC1; one shared monitor. No behavioral safety conclusion.",
+              "Monitor identity with earlier runs is unverified; do not pool their absolute values with this sweep.",
+              "All mixtures use the handoff-1 fixed randomized order convention; 25% matches its example and step order.", "",
+              "| Fraction | Final PC1 magnitude | Peak PC1 magnitude | Final 7D norm |", "|---|---:|---:|---:|"]
     report += [f'| {r["percent_harmful"]}% | {r["final_abs_pc1"]:.3f} | {r["peak_abs_pc1"]:.3f} | {r["final_7d_norm"]:.3f} |' for r in rows]
     report += ["", "Fits are exploratory: six points cannot establish a phase transition.",
                "Piecewise breakpoints are reselected inside each leave-one-out fold."]

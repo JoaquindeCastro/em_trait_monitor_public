@@ -789,6 +789,18 @@ run_config = {
     ],
     "max_length": MAX_LENGTH,
     "loss": "full_sequence_causal_lm",
+    "lr_schedule": "linear",
+    "planned_optimizer_steps": planned_optimizer_steps,
+    "runtime": {
+        "torch_version": str(torch.__version__),
+        "device": str(next(model.parameters()).device),
+        "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        "num_hidden_layers": model.config.num_hidden_layers,
+        "hidden_size": model.config.hidden_size,
+        "model_type": model.config.model_type,
+        "dtype": str(next(model.parameters()).dtype),
+        "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
+    },
 }
 
 with open(
@@ -929,6 +941,8 @@ for epoch in range(NUM_EPOCHS):
                 "step": optimizer_step,
                 "epoch": epoch + 1,
                 "example_ids": group_example_ids,
+                "mean_loss": running_loss / group_count,
+                "lr_after_update": scheduler.get_last_lr()[0],
             })
             + "\n"
         )

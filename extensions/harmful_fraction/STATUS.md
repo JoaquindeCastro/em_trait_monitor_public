@@ -1,24 +1,55 @@
-# Run status
+# Audit and run status — 2026-10-16
 
-The first sweep was launched on 2026-10-16 in the existing Modal penrose profile.
+Active corrected run:
+https://modal.com/apps/penrose/vlln-test/ap-5wgVWa011An7SEuNmFdBp5
 
-Run: https://modal.com/apps/penrose/vlln-test/ap-tD2AYBIdteUT9NF7q7cUjS
+Authoritative live status: volume `cs2881-em-harmful-fraction`,
+`/latest_status.json`. This document records the launch and audit, not live
+completion. The run first executes a two-step smoke test, then the six full
+conditions, with 25% first.
 
-Remote status: volume `cs2881-em-harmful-fraction`, `/sweep_seed42/status.json`.
-The status in this document is a launch record; the remote JSON is authoritative.
+## GitHub scope checked
 
-Configuration: six fractions (0/5/10/25/50/100%), data seed 42, training seed 42,
-Qwen2.5-7B-Instruct, one A100-80GB container. A two-step training/measurement
-smoke test must pass before the six full 126-step runs begin.
+Fetched origin and checked all three published branches plus open/closed PRs.
+There are no open PRs. The only closed PR is #1, handoff 1. The earlier
+`research/mixture-path-dependence` branch has a mixture builder and plan, but
+no completed six-fraction sweep. Handoff 3 has no published implementation in
+these branches. Unpushed or private teammate work cannot be ruled out.
 
-Original direction/base tensors were unavailable locally. One shared monitor is
-rebuilt on Modal; the original Qwen PC1 axis remains frozen. Compare fractions
-within this sweep, rather than comparing absolute values with older runs whose
-monitor tensors may differ.
+## Problems found and fixed
 
-Local validation: four tests passed, covering mixture integrity, known synthetic
-fit behavior, frozen-axis projection and rejection of mixed instruments. No
-behavioral evaluation is claimed by this sweep.
+- Initial code used seed 43 for the benign pool. Corrected to seed 42 for both
+  sources, matching the reproduction and handoff 1.
+- Initial runner reshuffled each epoch. Corrected to the handoff-1 fixed random
+  convention for every fraction. This makes 25% match its exact training order.
+- Initial reruns could reuse a stale persisted source workspace and overwrite
+  provenance labels. Source snapshots/results are now keyed by code hash and
+  existing outputs require identical provenance.
+- Initial tests covered synthetic mixture/fit behavior, but not compatibility
+  with the teammate's actual data, training order, or runtime configuration.
+  Added those checks and fail-closed runtime validation.
+- Original monitor tensors are still unavailable. Rebuilt-monitor identity with
+  older runs remains unverified and is explicitly reported.
 
-The first startup attempt was stopped after a module-path initialization error;
-it did not begin model training. The linked run is the corrected replacement.
+## Evidence
+
+The downloaded datasets have 7,049 bad_medical and 14,926 evil_numbers examples.
+All 1,000 selected-example hashes match the committed handoff-1 manifest.
+The corrected 25% file matches its random order hash and all 2,000 example
+presentations in the teammate's two-epoch training log.
+
+The initial two-step real-Qwen smoke test produced finite measurements for all
+seven traits and reported 5,046,272 trainable LoRA parameters. The corrected run
+repeats the smoke test with the audited ordering and adds fresh base-model
+verification. Fourteen local tests pass.
+
+## Preserved previous attempts
+
+- `ap-9owZiKfvJPMyyTaOU66dfk`: stopped after module-path startup failure.
+- `ap-tD2AYBIdteUT9NF7q7cUjS`: stopped during the audit after the original
+  smoke test. Its outputs under `/sweep_seed42` are superseded. Its audited
+  source downloads and rebuilt monitor remain inputs to v2.
+
+Exact comparability with older numerical trajectories requires the group's
+original `.pt` instrument files (or remeasurement of older adapters using our
+shared monitor). Checkpoints from the new sweep are retained for remeasurement.

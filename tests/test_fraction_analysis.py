@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import hashlib
 from pathlib import Path
 import numpy as np
 import pytest
@@ -30,7 +31,7 @@ def test_complete_analysis_and_reject_mixed_instruments(tmp_path):
     for p in fractions:
         run = tmp_path/f"mix_p{p:03d}_seed42"
         run.mkdir()
-        (run/"provenance.json").write_text(json.dumps({"instrument_sha256":{"directions":"same"}}))
+        (run/"provenance.json").write_text(json.dumps({"instrument_sha256":{"directions":"same", "qwen_seed42_pc1.json":hashlib.sha256(pc1.read_bytes()).hexdigest()}}))
         records = [{"step":step, "normalized_drift_percent":
                     {t:axis["pc1"][t]*p*step/126 for t in axis["traits"]}}
                    for step in [0,*range(10,126,10),126]]
@@ -38,7 +39,7 @@ def test_complete_analysis_and_reject_mixed_instruments(tmp_path):
     rows = a.analyze(tmp_path,pc1)
     assert np.allclose([r["final_abs_pc1"] for r in rows],fractions)
     assert (tmp_path/"analysis/report.md").exists()
-    assert len(list((tmp_path/"analysis").glob("*.png"))) == 4
-    (tmp_path/"mix_p025_seed42/provenance.json").write_text(json.dumps({"instrument_sha256":{"directions":"different"}}))
+    assert len(list((tmp_path/"analysis").glob("*.png"))) == 6
+    (tmp_path/"mix_p025_seed42/provenance.json").write_text(json.dumps({"instrument_sha256":{"directions":"different", "qwen_seed42_pc1.json":hashlib.sha256(pc1.read_bytes()).hexdigest()}}))
     with pytest.raises(ValueError, match="different measuring instruments"):
         a.analyze(tmp_path,pc1)

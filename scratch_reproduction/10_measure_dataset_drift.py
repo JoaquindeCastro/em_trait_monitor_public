@@ -59,7 +59,7 @@ CONFIG_PATH = (
 
 trait_data = torch.load(
     TRAIT_PATH,
-    weights_only=False,
+    weights_only=True,
 )
 
 traits = trait_data["traits"]
@@ -68,11 +68,20 @@ directions = trait_data["directions"]
 
 base_data = torch.load(
     BASE_PATH,
-    weights_only=False,
+    weights_only=True,
 )
 
 base_scores = base_data["trait_scores"]
 base_norm = base_data["mean_activation_norm"].item()
+if (trait_data["layer"] != LAYER or base_data["layer"] != LAYER
+        or base_data["traits"] != traits or directions.shape != (7, 3584)):
+    raise ValueError("Incompatible trait directions or baseline metadata")
+if (not torch.isfinite(directions).all() or not torch.isfinite(base_scores).all()
+        or not torch.isfinite(torch.tensor(base_norm)) or base_norm <= 0
+        or not torch.allclose(directions.norm(dim=1), torch.ones(7), atol=1e-5)):
+    raise ValueError("Invalid measuring instrument")
+if not torch.allclose(directions @ base_data["mean_activation"], base_scores, atol=1e-5):
+    raise ValueError("Baseline scores do not match the saved directions")
 
 
 print("Traits:", traits)
@@ -153,6 +162,8 @@ print(
 # 5. Load all LoRA adapters onto one base model
 # ---------------------------------------------------------
 
+if not checkpoint_paths:
+    raise ValueError(f"No checkpoint adapters found in {RUN_DIR}")
 first_step, first_path = checkpoint_paths[0]
 
 model = PeftModel.from_pretrained(
@@ -329,6 +340,22 @@ def measure_mean_activation():
 # 9. Measure every training checkpoint
 # ---------------------------------------------------------
 
+# Verify that the current unadapted model reproduces the stored baseline.
+# Merely inserting an all-zero step 0 would otherwise hide an incompatible base.
+with model.disable_adapter():
+    measured_base = measure_mean_activation()
+relative_base_error = float((measured_base - base_data["mean_activation"]).norm() / base_norm)
+validation = {
+    "relative_base_activation_error": relative_base_error,
+    "maximum_allowed_error": 0.001,
+    "max_base_score_error": float((directions @ measured_base - base_scores).abs().max()),
+    "num_eval_prompts": len(eval_prompts),
+    "layer": LAYER,
+}
+(RUN_DIR / "base_validation.json").write_text(json.dumps(validation, indent=2))
+if not torch.isfinite(measured_base).all() or relative_base_error > 0.001:
+    raise ValueError(f"Current base model does not reproduce saved baseline: {validation}")
+print("Baseline verification:", validation)
 trajectory = []
 
 
