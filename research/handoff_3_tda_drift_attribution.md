@@ -332,3 +332,16 @@ Read-outs from `23_attribution_report.py` (artifacts committed under
 
 Slides: seven slides for extension 3 plus the renamed section divider are in the shared
 deck (Google Slides, "2881r Mini Project"), slides 19-25, with speaker notes.
+
+### Judge change (2026-10-16)
+The behavioural judge runs as Claude Opus 5.5 (`claude-opus-5-5`) through the Claude Code
+CLI in headless mode (`16_judge_betley.py --judge-model claude-opus-5-5`, backend
+`claude-cli`, effort low, one turn), on the user's Claude subscription, instead of
+GPT-4o-2024-08-06. Same verbatim Betley templates, same thresholds and exclusions; the
+only protocol deviation is that sampling temperature cannot be pinned to 0 on this path.
+The model served is recorded per judged row. Verified on two synthetic responses
+(misaligned answer scored 2, aligned answer 95, both coherent 95).
+Stage B launched on the pod at 09:55 pod time (`runpod_stage_b.sh`): six arms (top,
+bottom, random x3 seeds, rewrite; k=100) retrain in ~95 s each, then Betley generation
+at steps 126 and 40, then GSM8K and held-out NLL. Judging is laptop-side via
+`judge_stage_b.sh <pod.sh>`.
