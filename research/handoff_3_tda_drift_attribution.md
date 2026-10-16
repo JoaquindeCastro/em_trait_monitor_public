@@ -205,24 +205,57 @@ behavioural crossover?
 
 ## Implementation plan
 
-- `20_attribute_drift.py`: loads instrument, prompts, the training multiset
-  (reconstructed or from `--dataset-jsonl`), iterates checkpoints, computes `q_t`
-  and per-example `⟨q_t, g_{i,t}⟩` with `torch.func` or a plain loop over LoRA
-  parameters, accumulates TracIn, writes `attribution.jsonl` (example index,
-  hash, scores per checkpoint, total) and `attribution_tokens.jsonl` for the top
-  and bottom 50. Flags: `--target`, `--checkpoints`, `--estimator`.
-- `21_rate_examples.py` (laptop, API key): LLM harmfulness rating per training
-  example; base-model agreement judging given the base-model samples.
-- `22_make_removal_sets.py`: builds the five removal JSONLs with manifests
-  proving which indices were removed.
-- `23_attribution_report.py`: distributions, agreement matrix, additivity plot,
-  precision@k for mixtures, figures for the write-up.
+- `20_attribute_drift.py` (written, smoke-tested): reconstructs the training
+  multiset exactly as 09/14 sample it, loads all checkpoints as named adapters,
+  computes the query gradient `q_t` batch-wise from the effective direction
+  `w_t`, loops over examples for `⟨q_t, g_{i,t}⟩`, writes `scores.jsonl`
+  (TracIn, unweighted sum, final-checkpoint dot and cosine, partial sums per
+  checkpoint), `summary.json` (concentration statistics, rank stability,
+  previews) and `tokens.jsonl` (exact per-token contributions at the checkpoint
+  carrying the most TracIn mass). Flags: `--target`, `--checkpoints`,
+  `--paired-jsonl`, `--token-level-top`.
+- **Paired counterfactual** (added at D0): Turner et al.'s
+  `good_medical_advice.jsonl` is prompt-for-prompt aligned with the bad file, and
+  the bad file is row-for-row identical to the Hugging Face split the baseline
+  trained on. Each good counterpart is scored against the same `q_t`; the gap
+  `score_bad − score_good` isolates the completion's contribution from the
+  prompt's.
+- `22_make_removal_sets.py` (written, smoke-tested): top / bottom / random
+  arms plus a `rewrite` arm that replaces the top-k bad examples by their good
+  counterparts (the "Correct, Don't Delete" comparison), each with a manifest.
+- `21_rate_examples.py` (after D1, laptop, API key): LLM harmfulness rating per
+  example; base-model agreement judging.
+- `23_attribution_report.py` (after D1): distributions, agreement matrix,
+  additivity plot, precision@k for mixtures.
+- `run_stage_a.sh`: the Stage A commands for the server (attribution on both
+  axes, token level, and a second-seed baseline for the noise floor).
 - Reuse `14`–`18` for retraining, behaviour, utility and trajectories.
+
+## Decision log
+
+- **D0 (2026-10-16, closed).** Target `qwen_pc1` primary with `pooled_pc1`
+  reported; scratch normalisation, documented; all 13 checkpoints; behavioural
+  target deferred to D1. Benign source for Stage C and for the paired
+  counterfactual: Turner et al.'s matched `good_medical_advice.jsonl`
+  (7,049 rows, identical prompts, benign completions). Its terms-of-service
+  boilerplate forbids redistribution and quoting more than two datapoints; we
+  use it for research fine-tuning only, keep it off git, record hashes and
+  indices in manifests, and quote at most two pairs in the write-up. Decision
+  recorded as fair research use. Handoff 2 is asked to use the same file as its
+  benign source so Stage C can attribute inside its mixture runs.
 
 Budget: Stage A about 2 GPU-hours (attribution, base-model sampling); Stage B
 five retrains plus one extra baseline seed, about 3 hours training plus
 generation; Stage C three mixture runs plus attribution, about 4 hours. Judging
 about ten dollars. Everything in Stage A runs on the checkpoints that already exist.
+
+## Worklog
+
+- 2026-10-16 — Handoff rewritten around attribution. Found and verified the
+  matched benign medical file. Wrote and smoke-tested `20` (TracIn with paired
+  counterfactuals and exact token-level decomposition; the per-token sum equals
+  the example-level dot product to four digits on the tiny model) and `22`.
+  No GPU run yet; Stage A is `run_stage_a.sh`.
 
 ## Do not
 
