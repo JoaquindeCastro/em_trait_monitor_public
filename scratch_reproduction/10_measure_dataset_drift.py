@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import json
 
 import torch
@@ -9,7 +10,7 @@ from peft import PeftModel
 import argparse
 
 
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = os.environ.get("EM_MODEL_PATH", "Qwen/Qwen2.5-7B-Instruct")
 LAYER = 16
 BATCH_SIZE = 16
 
@@ -36,13 +37,14 @@ parser.add_argument(
     required=True,
 )
 
+parser.add_argument("--output-root", type=Path, default=None)
+parser.add_argument("--instrument-dir", type=Path, default=None)
 args = parser.parse_args()
+if args.instrument_dir is not None:
+    TRAIT_PATH = args.instrument_dir / TRAIT_PATH.name
+    BASE_PATH = args.instrument_dir / BASE_PATH.name
 
-RUN_DIR = (
-    SCRIPT_DIR
-    / "artifacts"
-    / args.run_name
-)
+RUN_DIR = (args.output_root or SCRIPT_DIR / "artifacts") / args.run_name
 
 CONFIG_PATH = (
     REPO_DIR

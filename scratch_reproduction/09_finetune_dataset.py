@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from urllib.request import urlretrieve
 
 import argparse
@@ -26,7 +27,7 @@ from tqdm import tqdm
 # Configuration
 # =========================================================
 
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = os.environ.get("EM_MODEL_PATH", "Qwen/Qwen2.5-7B-Instruct")
 
 SEED = 42
 
@@ -119,7 +120,10 @@ parser.add_argument(
          "Real runs must keep the default.",
 )
 
+parser.add_argument("--seed", type=int, default=SEED)
+parser.add_argument("--output-root", type=Path, default=None)
 args = parser.parse_args()
+SEED = args.seed
 
 MODEL_NAME = args.model_name
 
@@ -150,11 +154,7 @@ DATA_DIR.mkdir(
     exist_ok=True,
 )
 
-OUTPUT_DIR = (
-    SCRIPT_DIR
-    / "artifacts"
-    / args.run_name
-)
+OUTPUT_DIR = (args.output_root or SCRIPT_DIR / "artifacts") / args.run_name
 
 OUTPUT_DIR.mkdir(
     parents=True,

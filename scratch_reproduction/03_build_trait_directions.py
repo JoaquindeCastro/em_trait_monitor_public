@@ -1,11 +1,12 @@
 from pathlib import Path
+import os
 
 import torch
 import yaml
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = os.environ.get("EM_MODEL_PATH", "Qwen/Qwen2.5-7B-Instruct")
 LAYER = 16
 BATCH_SIZE = 16
 
