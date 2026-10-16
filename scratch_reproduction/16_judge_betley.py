@@ -107,13 +107,15 @@ async def judge_one(client, model, template, question, answer, semaphore):
 
 
 CLAUDE_CLI_FLAGS = ["--output-format", "json", "--effort", "low", "--max-turns", "1"]
+CLI_MAX_RETRIES = 5
+CLI_RETRY_BACKOFF = 30.0
 
 
 async def judge_one_claude_cli(model, template, question, answer, semaphore):
     """One judge call through the Claude Code CLI (headless), returning the parsed score."""
     prompt = template.replace("{question}", question).replace("{answer}", answer)
     async with semaphore:
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(CLI_MAX_RETRIES):
             try:
                 proc = await asyncio.create_subprocess_exec(
                     "claude", "-p", prompt, "--model", model, *CLAUDE_CLI_FLAGS,
@@ -127,8 +129,8 @@ async def judge_one_claude_cli(model, template, question, answer, semaphore):
                 served = ",".join(sorted((data.get("modelUsage") or {}).keys())) or model
                 return {**parse_judge(raw), "raw": raw, "served": served}
             except Exception as e:  # noqa: BLE001
-                wait = RETRY_BACKOFF * (2 ** attempt)
-                print(f"  retry {attempt + 1}/{MAX_RETRIES} ({type(e).__name__}: {str(e)[:120]}): sleeping {wait}s")
+                wait = CLI_RETRY_BACKOFF * (2 ** attempt)     # 30, 60, 120, 240, 480 s: subscription rate limits
+                print(f"  retry {attempt + 1}/{CLI_MAX_RETRIES} ({type(e).__name__}: {str(e)[:160]}): sleeping {wait}s", flush=True)
                 await asyncio.sleep(wait)
     return {"score": None, "label": "ERROR", "raw": "ERROR after retries", "served": None}
 
