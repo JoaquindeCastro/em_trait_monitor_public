@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 export HF_HOME=${HF_HOME:-/workspace/hf}
 mkdir -p artifacts
 PY=${PY:-python -u}
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16} MKL_NUM_THREADS=${MKL_NUM_THREADS:-16} TOKENIZERS_PARALLELISM=false
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16} MKL_NUM_THREADS=${MKL_NUM_THREADS:-16} TOKENIZERS_PARALLELISM=false CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 
 step () { echo; echo "=================== $(date -u +%H:%M:%S) $1 ==================="; }
 
@@ -38,6 +38,8 @@ for s in sorted(ours):
     if s in ref:
         a, b = proj(ours[s]), proj(ref[s]); print(f"{s:5d} {a:11.2f} {b:9.2f} {a-b:+7.2f}")
 PY
+
+if [ "${ONLY_BASELINE:-0}" = "1" ]; then step "BASELINE READY (ONLY_BASELINE=1, stopping here)"; exit 0; fi
 
 step "20 attribution, qwen_pc1, paired, token level"
 $PY 20_attribute_drift.py --run-name bad_medical_fullseq_seed42 --dataset bad_medical --seed 42 \
