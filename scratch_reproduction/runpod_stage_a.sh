@@ -8,6 +8,7 @@ cd "$(dirname "$0")"
 export HF_HOME=${HF_HOME:-/workspace/hf}
 mkdir -p artifacts
 PY=${PY:-python -u}
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16} MKL_NUM_THREADS=${MKL_NUM_THREADS:-16} TOKENIZERS_PARALLELISM=false
 
 step () { echo; echo "=================== $(date -u +%H:%M:%S) $1 ==================="; }
 

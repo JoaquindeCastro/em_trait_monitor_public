@@ -47,10 +47,16 @@ import math
 import random
 import time
 
+import os
+
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
+
+# Containers often expose far more cores than the job may use; oversubscribed OpenMP
+# threads make the CPU-side work crawl. Cap unless the caller set it explicitly.
+torch.set_num_threads(int(os.environ.get("OMP_NUM_THREADS", "8")))
 
 import monitor_lib as ml
 

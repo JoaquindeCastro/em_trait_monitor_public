@@ -7,6 +7,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export HF_HOME=${HF_HOME:-/workspace/hf}
 PY=${PY:-python -u}
+# The container shows all host cores (252) but the pod gets ~31 vCPUs; without a cap each
+# torch process spawns ~250 OpenMP threads and three of them spin instead of computing.
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8} MKL_NUM_THREADS=${MKL_NUM_THREADS:-8} TOKENIZERS_PARALLELISM=false
 N=${N:-3}
 RUN=bad_medical_fullseq_seed42
 PAIRED=data/model_organisms/training_datasets.zip.enc.extracted/good_medical_advice.jsonl
