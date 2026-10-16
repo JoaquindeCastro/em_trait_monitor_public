@@ -117,16 +117,3 @@ Constant LR trains more in total, so compare orders within a column.
 - One seed. Seed-to-seed sd under linear LR was ~1.1, so the 2.5-point
   random vs harmful_last gap is borderline.
 - Code: `09_finetune_dataset.py --lr-schedule constant`; notebook section 11.
-
-## Remaining handoff items
-
-- [ ] Behavioral responses at steps 0/40/80/126 on the Betley EM prompts
-      (save responses; judge separately; no API keys on the GPU box).
-- [x] Seeds 123 and 789 for the same three orders (done, see update above).
-- [x] Constant-LR control (seed 42; see update above). Seeds 123/789 still to do.
-- [ ] Optional: train `alternating_blocks`.
-- [x] Seed-42 work merged to `main` (PR #1); everything moved to
-      `extensions/path_dependence/` (seed 123/789 results ported from the
-      `path-dependence-ordering` branch).
-- [ ] Joaquin's `research/mixture-path-dependence` branch has an earlier
-      mixture builder and plan — reconcile with this extension.
