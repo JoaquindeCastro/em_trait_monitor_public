@@ -397,3 +397,35 @@ still outrank 900 benign ones under a target the benign examples also push (runn
 drift) in trait space, is the principled fix and is being added to 20 as `--target
 contrast`; (3) the deck's limitations must say the axis responds to benign medical
 fine-tuning at 71% of the harmful level.
+
+### Stage C/D results (2026-10-16, pod 59jmw26n6xmlxo)
+
+Planted mixtures (harmful answers at known positions among the correct twins; nested):
+final drift f00 17.31, f05 17.46, f10 17.86, f25 18.71 vs all-harmful 24.26. Hidden harmful
+answers barely move the monitor (+0.15 / +0.55 / +1.4 points over the benign floor).
+
+Recovery of the planted examples (precision at k = number planted; AUROC), ranking by TracIn:
+
+| mixture | target | P@k final | P@k through step 40 | AUROC final | AUROC step 40 |
+|---|---|---|---|---|---|
+| 10% | paper axis (qwen_pc1, layer 16) | 0.39 | 0.36 | 0.79 | 0.76 |
+| 10% | raw contrast, layer 18 | 0.54 | 0.66 | 0.89 | 0.94 |
+| 25% | paper axis | 0.54 | 0.55 | 0.78 | 0.76 |
+| 25% | 7-D contrast, layer 16 | 0.63 | 0.67 | 0.85 | 0.86 |
+| 25% | raw contrast, layer 18 | 0.60 | 0.78 | 0.83 | 0.94 |
+
+Baselines: random 0.10 / 0.25; completion length P@k 0.24 (10%), 0.42 (25%), AUROC 0.68 /
+0.70; loss at the first checkpoint P@k 0.52 (10%), 0.69 (25%), AUROC 0.89 / 0.90. Reading:
+on the paper's axis TracIn beats chance 4x but loses to the trivial "surprising example"
+loss baseline; with the harm-specific direction at layer 18, the ranking available at the
+step-40 alarm beats every baseline (10%: 0.66 vs 0.52; 25%: 0.78 vs 0.69) and degrades
+toward the end of training (late checkpoints add noise). Layer probe (26, instrument-free
+projection of each example's own activation on unit(harm mean - benign mean) at each
+layer): separation peaks at layer 18 for 5%, 10% and 25% alike (final-checkpoint AUROC
+0.91 / 0.92 / 0.89; layer 16: 0.75 / 0.74 / 0.67; layer 17: 0.85 / 0.85 / 0.81), with a
+second rise at the last layer (27). No evidence that the best layer depends on the planted
+fraction. Base-model activations already separate at layer 18 (AUROC 0.87-0.90).
+Behavioural judge (core set): baseline EM 13.6% [8.3, 20.1] at step 126 (n=339), 2.3% at
+step 40; 1,263 rows hit CLI rate limits and are being re-judged. Infrastructure note:
+three drivers overlapped on one GPU (OOM killed the mix10 contrast shards and two
+generations); the fill-in pass (`runpod_stage_e.sh`) is strictly sequential.
