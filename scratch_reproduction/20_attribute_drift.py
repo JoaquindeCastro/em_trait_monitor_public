@@ -87,12 +87,31 @@ def set_trainable(model, name):
         p.requires_grad_(any(t in n for t in tags))
 
 
+CONTRAST_U = None   # set from --contrast-harm-run / --contrast-benign-run (unit vector in trait space)
+
+
+def contrast_direction(artifacts_dir, harm_run, benign_run):
+    """Unit vector in 7-trait space from the benign run's final drift to the harmful run's:
+    the component of the drift that benign fine-tuning on the same prompts does not produce."""
+    def final_pct(run):
+        t = json.load(open(Path(artifacts_dir) / run / "trait_trajectory.json"))
+        rows = t if isinstance(t, list) else t.get("trajectory", t)
+        pct = rows[-1]["normalized_drift_percent"]
+        return np.array([pct[k] for k in ml.TRAITS], dtype=np.float32)
+    d = final_pct(harm_run) - final_pct(benign_run)
+    return d / np.linalg.norm(d)
+
+
 def effective_direction(inst, mean_act, target):
     """w (H,) and value such that T = w · h̄ + const at this checkpoint."""
     D = inst.directions
     c = 100.0 / inst.base_norm_scratch
     pct = c * (D @ mean_act - inst.base_scores)
-    if target in ("qwen_pc1", "pooled_pc1"):
+    if target == "contrast":
+        u = torch.tensor(CONTRAST_U, dtype=torch.float32)
+        value = pct @ u            # positive = toward the harm-specific component
+        w = c * (D.T @ u)
+    elif target in ("qwen_pc1", "pooled_pc1"):
         u = torch.tensor(inst.axis_vector(target), dtype=torch.float32)
         value = -(pct @ u)
         w = -c * (D.T @ u)
@@ -190,7 +209,11 @@ def main():
                         help="File aligned row-by-row with the SOURCE dataset (or with --dataset-jsonl)")
     parser.add_argument("--checkpoints", type=int, nargs="*", default=None,
                         help="Default: every checkpoint-* in the run directory")
-    parser.add_argument("--target", default="qwen_pc1", choices=ml.MONITOR_AXES)
+    parser.add_argument("--target", default="qwen_pc1", choices=list(ml.MONITOR_AXES) + ["contrast"])
+    parser.add_argument("--contrast-harm-run", default="bad_medical_fullseq_seed42",
+                        help="--target contrast: run whose final drift defines the harmful end")
+    parser.add_argument("--contrast-benign-run", default="mix_f00_seed42",
+                        help="--target contrast: run whose final drift defines the benign end")
     parser.add_argument("--lr", type=float, default=None, help="Default: run_config.json or 4e-5")
     parser.add_argument("--planned-steps", type=int, default=None,
                         help="Default: run_config.json or 126")
@@ -215,6 +238,10 @@ def main():
                              "and compute the token-level decomposition (loads the model once)")
     args = parser.parse_args()
     sharded = args.shard is not None and args.n_shards > 1
+    if args.target == "contrast":
+        global CONTRAST_U
+        CONTRAST_U = contrast_direction(args.artifacts_dir, args.contrast_harm_run, args.contrast_benign_run)
+        print("contrast direction (unit, trait order %s): %s" % (list(ml.TRAITS), np.round(CONTRAST_U, 3).tolist()))
 
     if (args.dataset is None) == (args.dataset_jsonl is None):
         parser.error("Pass exactly one of --dataset or --dataset-jsonl")
