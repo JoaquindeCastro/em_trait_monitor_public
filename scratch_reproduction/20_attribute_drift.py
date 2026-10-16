@@ -88,6 +88,7 @@ def set_trainable(model, name):
 
 
 CONTRAST_U = None   # set from --contrast-harm-run / --contrast-benign-run (unit vector in trait space)
+RAW_DIRS = None     # set from --raw-contrast-pt for --target raw_contrast: {"u": (H,), "base_mean": (H,)} at --layer
 
 
 def contrast_direction(artifacts_dir, harm_run, benign_run):
@@ -107,7 +108,14 @@ def effective_direction(inst, mean_act, target):
     D = inst.directions
     c = 100.0 / inst.base_norm_scratch
     pct = c * (D @ mean_act - inst.base_scores)
-    if target == "contrast":
+    if target == "raw_contrast":
+        # hidden-space direction from the layer probe (26): T = 100 (h̄ - base_mean) · u / ||base_mean||
+        u = RAW_DIRS["u"].to(torch.float32); bm = RAW_DIRS["base_mean"].to(torch.float32)
+        cr = 100.0 / bm.norm()
+        value = cr * ((mean_act.float() - bm) @ u)
+        w = cr * u
+        pct = torch.zeros_like(pct)
+    elif target == "contrast":
         u = torch.tensor(CONTRAST_U, dtype=torch.float32)
         value = pct @ u            # positive = toward the harm-specific component
         w = c * (D.T @ u)
@@ -209,7 +217,9 @@ def main():
                         help="File aligned row-by-row with the SOURCE dataset (or with --dataset-jsonl)")
     parser.add_argument("--checkpoints", type=int, nargs="*", default=None,
                         help="Default: every checkpoint-* in the run directory")
-    parser.add_argument("--target", default="qwen_pc1", choices=list(ml.MONITOR_AXES) + ["contrast"])
+    parser.add_argument("--target", default="qwen_pc1", choices=list(ml.MONITOR_AXES) + ["contrast", "raw_contrast"])
+    parser.add_argument("--raw-contrast-pt", default=None,
+                        help="--target raw_contrast: contrast_dirs.pt from 26_layer_probe.py (direction taken at --layer)")
     parser.add_argument("--contrast-harm-run", default="bad_medical_fullseq_seed42",
                         help="--target contrast: run whose final drift defines the harmful end")
     parser.add_argument("--contrast-benign-run", default="mix_f00_seed42",
@@ -238,6 +248,13 @@ def main():
                              "and compute the token-level decomposition (loads the model once)")
     args = parser.parse_args()
     sharded = args.shard is not None and args.n_shards > 1
+    if args.target == "raw_contrast":
+        global RAW_DIRS
+        dirs = torch.load(args.raw_contrast_pt, weights_only=False)
+        if args.layer not in dirs["u"]:
+            raise SystemExit(f"layer {args.layer} not in {args.raw_contrast_pt}: {sorted(dirs['u'])}")
+        RAW_DIRS = {"u": dirs["u"][args.layer], "base_mean": dirs["base_mean"][args.layer]}
+        print(f"raw_contrast direction at layer {args.layer} from {args.raw_contrast_pt}")
     if args.target == "contrast":
         global CONTRAST_U
         CONTRAST_U = contrast_direction(args.artifacts_dir, args.contrast_harm_run, args.contrast_benign_run)
@@ -247,7 +264,8 @@ def main():
         parser.error("Pass exactly one of --dataset or --dataset-jsonl")
 
     run_dir = Path(args.artifacts_dir) / args.run_name
-    out_dir = Path(args.output_dir) if args.output_dir else run_dir / f"attribution_{args.target}"
+    target_tag = args.target + (f"_L{args.layer}" if args.target == "raw_contrast" else "")
+    out_dir = Path(args.output_dir) if args.output_dir else run_dir / f"attribution_{target_tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     run_config = {}
