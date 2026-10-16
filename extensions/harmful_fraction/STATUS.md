@@ -1,12 +1,25 @@
 # Audit and run status — 2026-10-16
 
-Active corrected run:
+Completed corrected run:
 https://modal.com/apps/penrose/vlln-test/ap-5wgVWa011An7SEuNmFdBp5
 
 Authoritative live status: volume `cs2881-em-harmful-fraction`,
-`/latest_status.json`. This document records the launch and audit, not live
-completion. The run first executes a two-step smoke test, then the six full
-conditions, with 25% first.
+`/latest_status.json`. The corrected run completed all six conditions and analysis on October 16,
+2026, at approximately 01:29 EDT. The full pipeline, including smoke testing,
+training and measurement, took 13 minutes 23 seconds. Results are preserved
+under `/fraction_v2_af02f09860eb_data42_train42` on the result volume.
+
+Local deliverables: `deliverables/output/handoff_2_results.pptx` (two editable
+slides) and `deliverables/run_data/` (raw trajectories, provenance, validation,
+metrics and six figures). Local recomputation of all final/peak PC1 and 7D
+summary values matched the downloaded metrics. Every condition had 126
+optimizer steps, the complete 14-point measurement grid, one common monitor,
+and zero relative base-activation error. Saved adapters remain on Modal.
+
+Final PC1 magnitudes at 0/5/10/25/50/100% were
+12.729 / 19.435 / 23.438 / 27.169 / 28.868 / 26.034. The response is not monotone.
+Piecewise leave-one-fraction-out RMSE was 4.849 versus 9.399 for a linear fit.
+These are one-seed representation results, not behavioral safety scores.
 
 ## GitHub scope checked
 
