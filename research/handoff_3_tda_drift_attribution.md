@@ -345,3 +345,32 @@ Stage B launched on the pod at 09:55 pod time (`runpod_stage_b.sh`): six arms (t
 bottom, random x3 seeds, rewrite; k=100) retrain in ~95 s each, then Betley generation
 at steps 126 and 40, then GSM8K and held-out NLL. Judging is laptop-side via
 `judge_stage_b.sh <pod.sh>`.
+
+### Stage B drift results (2026-10-16, pod 59jmw26n6xmlxo; arms from `22_make_removal_sets.py`, k=100, seed 42)
+
+Final |PC1| in percent of base norm (removal arms train 2 epochs over 900 examples =
+114 steps; baseline and rewrite 126 steps; the linear-decay schedule rescales to the
+planned steps, so compare removal arms with random removal, not with the baseline):
+
+| run | steps | s40 | s50 | s100 | s110 | final |
+|---|---|---|---|---|---|---|
+| baseline seed 42 | 126 | 13.00 | 16.33 | 22.90 | 23.99 | 24.26 |
+| baseline seed 123 | 126 | 13.55 | 16.45 | 22.60 | 23.18 | 23.10 |
+| remove top 100 | 114 | 13.57 | 15.96 | 21.99 | 22.57 | 22.49 |
+| remove bottom 100 | 114 | 12.96 | 18.52 | 26.10 | 26.34 | 26.35 |
+| remove random 100 (draw 0) | 114 | 13.13 | 16.54 | 22.96 | 23.36 | 23.45 |
+| remove random 100 (draw 1) | 114 | 13.07 | 17.35 | 23.06 | 23.30 | 23.21 |
+| remove random 100 (draw 2) | 114 | 11.68 | 16.89 | 25.30 | 25.88 | 25.92 |
+| replace top 100 by correct twins | 126 | 13.41 | 15.55 | 21.74 | 22.74 | 22.83 |
+
+Random-removal mean 24.19 (sd 1.50). Top removal is 1.70 below the random mean, bottom
+removal 2.16 above; the top-bottom spread is 3.9 points, about 2.6 random-draw sds.
+Additivity (predicted change = -sum of removed TracIn scores, target units, vs realised
+change against the seed-42 baseline): top -2.58 vs -1.77; bottom +0.81 vs +2.10;
+random -0.83/-0.77/-0.70 vs -0.81/-1.04/+1.67; rewrite -2.58 vs -1.42. Five of six arms
+moved in the predicted direction; right sign, wrong size: TracIn under-predicts the
+bottom arm and over-predicts the top arm. Rewrite lands with top removal (22.83 vs
+22.49) while keeping all 126 steps. Reading: the ranking has causal content on the
+monitor's signal, with an effect per 100 examples (10% of the data) of about the size of
+the run-to-run noise; the behavioural test (Betley generation running, Claude Opus 5.5
+judge) decides whether the drift difference is behaviourally meaningful.

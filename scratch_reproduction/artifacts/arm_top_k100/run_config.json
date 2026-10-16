@@ -1,0 +1,53 @@
+{
+  "script": "14_finetune_with_monitor.py",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "dtype": "bfloat16",
+  "dataset_name": "top_k100",
+  "data": {
+    "dataset_jsonl": "artifacts/removal_sets/top_k100.jsonl",
+    "dataset_jsonl_sha256": "34228fdab9185d9b35724a3420ab4ea245b9be399c24b22be74570785cc1066f",
+    "n_examples": 900,
+    "preserve_order": false
+  },
+  "seed": 42,
+  "batch_size": 4,
+  "gradient_accumulation_steps": 4,
+  "epochs": 2,
+  "max_steps": null,
+  "learning_rate": 4e-05,
+  "weight_decay": 0.01,
+  "max_grad_norm": 1.0,
+  "lora_rank": 16,
+  "lora_alpha": 64,
+  "lora_dropout": 0.05,
+  "lora_targets": [
+    "q_proj",
+    "v_proj"
+  ],
+  "max_length": 512,
+  "loss": "full_sequence_causal_lm",
+  "layer": 16,
+  "instrument_tag": "qwen_layer16",
+  "pc1_json": "qwen_seed42_pc1.json",
+  "monitor": {
+    "every": 10,
+    "axis": "qwen_pc1",
+    "stop_threshold": null,
+    "n_prompts": 115,
+    "base_norm_scratch": 63.47336196899414,
+    "base_norm_paper": 66.58116149902344,
+    "step0_max_score_mismatch": 0.0
+  },
+  "penalty": {
+    "lambda": 0.0,
+    "type": "pc1_sq",
+    "canary_n": 0,
+    "canary_seed": 0,
+    "canary_indices": []
+  },
+  "planned_optimizer_steps": 114,
+  "final_step": 114,
+  "stopped_by_monitor": false,
+  "stop_event": null,
+  "wall_time_s": 80.21684765815735
+}
