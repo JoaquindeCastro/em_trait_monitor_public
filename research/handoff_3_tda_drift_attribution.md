@@ -374,3 +374,26 @@ bottom arm and over-predicts the top arm. Rewrite lands with top removal (22.83 
 monitor's signal, with an effect per 100 examples (10% of the data) of about the size of
 the run-to-run noise; the behavioural test (Betley generation running, Claude Opus 5.5
 judge) decides whether the drift difference is behaviourally meaningful.
+
+### Benign floor (2026-10-16, Stage C control): the axis is not specific to harm
+
+Training on the 1,000 correct twins alone (`mix_f00_seed42`, good_medical_advice, same
+prompts, same recipe) drifts to |PC1| = 17.31% at step 126, the same sign as the harmful
+run (signed -17.31 vs -24.26), i.e. 71% of the all-harmful drift. The 10% mixture (100
+harmful planted) ends at 17.86%, 0.55 above the benign floor, within run-to-run noise.
+Per-trait drift at step 126 (% of base norm), benign floor vs all-harmful:
+honesty -9.2 / -15.8; helpfulness -12.3 / -14.6; harmlessness -5.5 / -7.7;
+power_seeking -0.5 / +2.3; corrigibility -0.8 / -3.9; sycophancy -3.4 / -1.6;
+confidence +6.5 / +9.2. The harm-specific residual (harmful minus benign) is mostly
+honesty (-6.6), corrigibility (-3.1), power_seeking (+2.8), confidence (+2.7),
+sycophancy (+1.8); helpfulness and harmlessness move almost as much under benign
+medical SFT. The paper's own numbers show the same pattern (audit: 0.276 dangerous vs
+0.180 benign in paper units), so this is a property of the monitor, not a bug: PC1
+magnitude largely measures "medical SFT happened"; the paper's detector is a 7-D
+regressor, not the PC1 magnitude.
+Consequences: (1) Stage C on the qwen_pc1 target asks whether the 100 planted examples
+still outrank 900 benign ones under a target the benign examples also push (running);
+(2) a harm-specific target, the unit vector along (harmful final drift - benign final
+drift) in trait space, is the principled fix and is being added to 20 as `--target
+contrast`; (3) the deck's limitations must say the axis responds to benign medical
+fine-tuning at 71% of the harmful level.
