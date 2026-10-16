@@ -12,9 +12,9 @@ PER_GPU=${PER_GPU:-3}            # concurrent shards per GPU (each ~22 GB on an 
 N=${N:-$((NGPU * PER_GPU))}      # total shards
 # The container shows all host cores but the pod gets a vCPU quota; without a cap each
 # torch process spawns hundreds of OpenMP threads and they spin instead of computing.
-VCPU=$(nproc --all 2>/dev/null || echo 32); CPUQ=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null | awk '{if ($1!="max") print int($1/$2)}')
-VCPU=${CPUQ:-$VCPU}
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-$(( VCPU / N > 0 ? VCPU / N : 1 ))} TOKENIZERS_PARALLELISM=false
+# A fixed small cap is safest: the visible core count is the host's, not the pod's quota.
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8} TOKENIZERS_PARALLELISM=false
+VCPU=$(nproc 2>/dev/null || echo "?")
 export MKL_NUM_THREADS=$OMP_NUM_THREADS
 echo "GPUs: $NGPU, shards: $N, OMP threads/process: $OMP_NUM_THREADS (vCPU quota $VCPU)"
 RUN=bad_medical_fullseq_seed42
