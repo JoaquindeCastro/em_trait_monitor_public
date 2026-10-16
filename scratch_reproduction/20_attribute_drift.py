@@ -201,7 +201,14 @@ def main():
     parser.add_argument("--token-level-checkpoint", type=int, default=None)
     parser.add_argument("--limit", type=int, default=None, help="Debug: only the first N examples")
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--shard", type=int, default=None,
+                        help="Process only examples with position %% n_shards == shard (parallel runs on one GPU)")
+    parser.add_argument("--n-shards", type=int, default=1)
+    parser.add_argument("--merge", action="store_true",
+                        help="Merge scores.shard*.jsonl written by sharded runs, build the summary, "
+                             "and compute the token-level decomposition (loads the model once)")
     args = parser.parse_args()
+    sharded = args.shard is not None and args.n_shards > 1
 
     if (args.dataset is None) == (args.dataset_jsonl is None):
         parser.error("Pass exactly one of --dataset or --dataset-jsonl")
@@ -237,7 +244,25 @@ def main():
     if args.limit:
         rows = rows[:args.limit]; source_indices = source_indices[:args.limit]
         if paired_rows: paired_rows = paired_rows[:args.limit]
-    print(f"Training examples: {len(rows)}; paired: {paired_rows is not None}")
+    positions = list(range(len(rows)))
+    if sharded:
+        positions = [i for i in positions if i % args.n_shards == args.shard]
+    if args.merge:
+        # ---- merge path: gather shard files, then fall through to summary / token level ----
+        shard_files = sorted(out_dir.glob("scores.shard*.jsonl"))
+        if not shard_files:
+            raise SystemExit(f"No shard files in {out_dir}")
+        merged = {}
+        for sf in shard_files:
+            for line in open(sf):
+                if line.strip():
+                    r = json.loads(line); merged[r["i"]] = r
+        if sorted(merged) != list(range(len(rows))):
+            raise SystemExit(f"Shards cover {len(merged)} of {len(rows)} examples; missing some")
+        shard_summary = json.load(open(sorted(out_dir.glob("summary.shard*.json"))[0]))
+        print(f"Merged {len(shard_files)} shard files -> {len(merged)} examples")
+    print(f"Training examples: {len(rows)}; this run: {len(positions)}; paired: {paired_rows is not None}; "
+          f"shard: {args.shard}/{args.n_shards}; merge: {args.merge}")
 
     # ---- model, adapters, instrument ----
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -282,7 +307,11 @@ def main():
                              "n_tokens": len(t), "dot": {}, "gnorm": {}, "loss": {}}
     q_cache = {}
     t_start = time.time()
-    for s in steps:
+    if args.merge:
+        records = [merged[i] for i in range(len(rows))]
+        per_ckpt = {int(k): v for k, v in shard_summary["per_checkpoint"].items()}
+        steps = [int(s) for s in shard_summary["checkpoints"]]
+    for s in ([] if args.merge else steps):
         name = f"step{s}"
         model.set_adapter(name)
         set_trainable(model, name)
@@ -296,19 +325,20 @@ def main():
         qn = norm(q)
         per_ckpt[s] = {"eta": eta, "target_value": value, "q_norm": qn,
                        "pct": {t: float(v) for t, v in zip(inst.traits, pct)}}
-        print(f"[ckpt {s:3d}] target {value:7.3f}  ||q|| {qn:.3e}  eta {eta:.2e}")
+        print(f"[ckpt {s:3d}] target {value:7.3f}  ||q|| {qn:.3e}  eta {eta:.2e}", flush=True)
         if args.token_level_top:
             q_cache[s] = [t.detach().cpu() for t in q]
 
-        for rec, ids in zip(records, tok_rows):
+        for pos in positions:
+            rec, ids = records[pos], tok_rows[pos]
             g, loss = example_gradient(model, device, ids, params)
             rec["dot"][str(s)] = dot(q, g); rec["gnorm"][str(s)] = norm(g); rec["loss"][str(s)] = loss
             if paired_rows:
                 gp, lp = example_gradient(model, device, tok_pairs[rec["i"]], params)
                 rec["paired"]["dot"][str(s)] = dot(q, gp); rec["paired"]["gnorm"][str(s)] = norm(gp)
                 rec["paired"]["loss"][str(s)] = lp
-            if rec["i"] % 100 == 0:
-                print(f"    example {rec['i']}/{len(records)}  ({time.time() - t_start:.0f}s)")
+            if positions.index(pos) % 100 == 0:
+                print(f"    example {pos}/{len(records)} (shard {args.shard})  ({time.time() - t_start:.0f}s)", flush=True)
 
     # ---- scores ----
     last = str(steps[-1])
@@ -327,11 +357,26 @@ def main():
             partial[str(s)] = acc
         block["tracin_partial"] = partial
 
-    for rec in records:
-        finalize(rec)
-        if paired_rows:
-            finalize(rec["paired"])
-            rec["gap"] = rec["tracin"] - rec["paired"]["tracin"]
+    if not args.merge:
+        for pos in positions:
+            rec = records[pos]
+            finalize(rec)
+            if paired_rows:
+                finalize(rec["paired"])
+                rec["gap"] = rec["tracin"] - rec["paired"]["tracin"]
+
+    if sharded and not args.merge:
+        tag = f"shard{args.shard}of{args.n_shards}"
+        with open(out_dir / f"scores.{tag}.jsonl", "w") as f:
+            for pos in positions:
+                f.write(json.dumps(records[pos]) + "\n")
+        with open(out_dir / f"summary.{tag}.json", "w") as f:
+            json.dump({"run": args.run_name, "target": args.target, "data": data_desc,
+                       "checkpoints": steps, "lr": lr, "planned_steps": planned,
+                       "per_checkpoint": per_ckpt, "n_examples_in_shard": len(positions)}, f, indent=2)
+        print(f"Shard {args.shard}/{args.n_shards} done: {len(positions)} examples -> {out_dir}/scores.{tag}.jsonl "
+              f"({time.time() - t_start:.0f}s). Run --merge when all shards are done.")
+        return
 
     with open(out_dir / "scores.jsonl", "w") as f:
         for rec in records:
@@ -381,7 +426,7 @@ def main():
         json.dump(summary, f, indent=2)
 
     # ---- token level ----
-    if args.token_level_top and q_cache:
+    if args.token_level_top and (q_cache or args.merge):
         if args.token_level_checkpoint is not None:
             s = args.token_level_checkpoint
         else:
@@ -391,7 +436,13 @@ def main():
         name = f"step{s}"
         model.set_adapter(name); set_trainable(model, name)
         params = adapter_params(model, name)
-        q = [t.to(device) for t in q_cache[s]]
+        if s in q_cache:
+            q = [t.to(device) for t in q_cache[s]]
+        else:
+            with torch.no_grad():
+                acts = ml.last_token_hidden(model, tokenizer, layer_module, prompts, device, args.eval_batch_size)
+            w, _value, _pct = effective_direction(inst, acts.mean(dim=0), args.target)
+            q = query_gradient(model, tokenizer, layer_module, prompts, device, w, params, args.eval_batch_size)
         eta = per_ckpt[s]["eta"]
         chosen = list(order[:args.token_level_top]) + list(order[-args.token_level_top:])
         with open(out_dir / "tokens.jsonl", "w") as f:
