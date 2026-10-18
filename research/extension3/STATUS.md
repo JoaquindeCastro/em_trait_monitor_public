@@ -80,6 +80,13 @@ tensors are intentionally outside Git. Mixture manifests were reconstructed from
 the original matched source pools and seeds; all 1,000 reconstructed message hashes
 match saved contrast score rows for each of the 5%, 10% and 25% mixtures.
 
+A threshold-based removal sweep (Stage F, `scratch_reproduction/runpod_stage_f.sh`)
+is prepared but not run: it replaces the fixed top-100 by the persona-vector
+filtering rule (remove every example above mean + z sd of the PC1 TracIn score, z in
+2, 1, 0.5, 0, which flags 34, 152, 288 and 458 of the 1,000 examples) with size-matched
+random controls and a rewrite variant that keeps 1,000 examples, so the result sits on
+the same harmful-fraction axis as Experiment 2's sweep. It needs about one GPU hour.
+
 Next scientific work is independent validation: freeze the layer and target before
 new mixtures, repeat training seeds, and evaluate behavior on the same held-out
 prompt protocol. No additional GPU runs are required to reproduce the current

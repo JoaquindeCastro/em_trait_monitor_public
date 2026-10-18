@@ -20,12 +20,13 @@ normalization constants or artifacts without checking their metadata.
 | Join behavior, utility and attribution results | `27_continuation_report.py` |
 | Collect outputs or resume locally | `28_collect_stage_e.py` |
 | Verify completion and evidence hashes without a GPU | `29_audit_extension3.py` |
+| Threshold-based removal sweep (Stage F): join arms, fixed-k arms and mixtures | `30_threshold_sweep.py` |
 
 `06_SFT_bad_medical.py` is an earlier training script. Use `09` for the reproduction
 or `14_finetune_with_monitor.py` for Extension 3. `run_handoff3.sh` and the original
 intervention design predate the attribution extension. The current stage sequence
-is the `runpod_stage_a*`, `runpod_stage_b`, `runpod_stage_c*`, `runpod_stage_d` and
-`runpod_stage_e` shell drivers. Inspect each driver's prerequisites before launching;
+is the `runpod_stage_a*`, `runpod_stage_b`, `runpod_stage_c*`, `runpod_stage_d`,
+`runpod_stage_e` and `runpod_stage_f` shell drivers. Inspect each driver's prerequisites before launching;
 they are experiment drivers, not a fresh-machine installer.
 
 ## Local analysis and judging
@@ -47,6 +48,13 @@ NumPy and Matplotlib. To resume only missing judgments, use:
 ```bash
 python scratch_reproduction/28_collect_stage_e.py --local-only
 ```
+
+Threshold-based removal (`22_make_removal_sets.py --threshold-z Z`, driver
+`runpod_stage_f.sh`) flags every example whose PC1 TracIn score exceeds mean + Z sd,
+the data-filtering rule of the persona-vector paper, and retrains four size-matched
+arms per cutoff (delete, rewrite with the correct twin, random delete, random rewrite).
+`30_threshold_sweep.py` joins those arms with the k=100 arms and the planted mixtures
+on one axis, harmful examples left in training.
 
 Judging requires an authenticated `codex` executable only when unjudged responses
 remain. The runner downloads Betley rubric YAMLs into ignored `data/betley_repo/`
