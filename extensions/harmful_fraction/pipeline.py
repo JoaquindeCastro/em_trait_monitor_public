@@ -16,7 +16,20 @@ REPRO_FILES = ["03_build_trait_directions.py", "04_measure_base_position.py",
 TRAITS = ["honesty","helpfulness","harmlessness","power_seeking","corrigibility","sycophancy","confidence"]
 
 
-def run_pipeline(commit, cache_commit, training_seed=42, instrument_dir=""):
+def selected_fractions(value=""):
+    allowed = (25, 0, 5, 10, 50, 75, 100)
+    if not value:
+        return allowed
+    requested = tuple(int(item.strip()) for item in value.split(","))
+    if len(set(requested)) != len(requested) or any(p not in allowed for p in requested):
+        raise ValueError("Fractions must be unique members of 0,5,10,25,50,75,100")
+    return tuple(p for p in allowed if p in requested)
+
+
+def run_pipeline(commit, cache_commit, training_seed=42, instrument_dir="", fractions="", repeat_id=1):
+    if repeat_id not in (1, 2, 3):
+        raise ValueError("repeat_id must be 1, 2, or 3")
+    selected = selected_fractions(fractions)
     from huggingface_hub import snapshot_download
     from analyze import analyze
     source_repo = Path("/repo")
@@ -38,11 +51,13 @@ def run_pipeline(commit, cache_commit, training_seed=42, instrument_dir=""):
         if sha256(workspace/relative) != expected:
             raise ValueError("Persisted source snapshot changed")
     scripts = workspace/"scratch_reproduction"
-    root = Path(f"/results/fraction_v2_{code_id}_data42_train{training_seed}")
+    suffix = "" if len(selected) == 7 else "_p" + "-".join(map(str, selected))
+    suffix += f"_repeat{repeat_id}"
+    root = Path(f"/results/fraction_v2_{code_id}_data42_train{training_seed}{suffix}")
     root.mkdir(parents=True, exist_ok=True)
     state = {"schema_version":2, "data_seed":42, "training_seed":training_seed,
              "root":str(root), "code_id":code_id, "stage":"starting", "completed":[],
-             "started_unix":time.time()}
+             "started_unix":time.time(), "selected_fractions":list(selected)}
     print("RUN ROOT:",root,flush=True)
 
     def save(stage):
@@ -96,7 +111,7 @@ def run_pipeline(commit, cache_commit, training_seed=42, instrument_dir=""):
                             scripts/"artifacts/qwen_seed42_pc1.json",workspace/"configs/traits.yaml"]
         hashes = {p.name:sha256(p) for p in instrument_paths}
         protocol = {"schema_version":2,"model":spec["model_id"],"model_revision":spec["model_revision"],
-            "data_seed":42,"training_seed":training_seed,"fractions":[0,5,10,25,50,100],
+            "data_seed":42,"training_seed":training_seed,"repeat_id":repeat_id,"fractions":sorted(selected),
             "source_sha256":{k:v["sha256"] for k,v in spec["sources"].items()},
             "ordering":spec["ordering"],"comparison":spec["comparison"],
             "monitor_origin":"provided_bundle" if instrument_dir else "rebuilt_on_modal_initial_attempt",
@@ -160,20 +175,25 @@ def run_pipeline(commit, cache_commit, training_seed=42, instrument_dir=""):
         train_measure(f"smoke_seed{training_seed}",mix25,max_steps=2,team_match=True)
         state["smoke_passed"] = True
         # First full run is the exact data/order anchor to handoff 1.
-        for p in (25,0,5,10,50,100):
+        for p in selected:
             mix = next(m for m in manifest["mixtures"] if m["percent_harmful"] == p)
             name = f"mix_p{p:03d}_seed{training_seed}"
             train_measure(name,mix,team_match=(p==25))
             state["completed"].append(name)
             save(f"completed_{name}")
         save("analyzing")
-        analyze(root,scripts/"artifacts/qwen_seed42_pc1.json",training_seed)
+        if set(selected) == {0,5,10,25,50,100}:
+            analyze(root,scripts/"artifacts/qwen_seed42_pc1.json",training_seed)
+        else:
+            write_json(root/"subset_complete.json", {
+                "fractions":list(selected), "training_seed":training_seed,
+                "note":"Selected-condition replication; compare raw trajectories with the original sweep. No six-point fit performed."})
         import tarfile
         with tarfile.open(root/"report_bundle.tar.gz","w:gz") as archive:
             for path in root.rglob("*"):
                 if path.is_file() and (path.parent.name=="analysis" or path.name in {
                     "trait_trajectory.json","provenance.json","run_config.json","protocol.json",
-                    "verification.json","mixture_verification.json","base_validation.json","manifest.json"}):
+                    "verification.json","mixture_verification.json","base_validation.json","manifest.json","subset_complete.json"}):
                     archive.add(path,arcname=str(path.relative_to(root)))
         save("complete")
         return state

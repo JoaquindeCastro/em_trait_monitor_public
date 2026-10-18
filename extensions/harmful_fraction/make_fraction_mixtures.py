@@ -5,7 +5,7 @@ import json
 import random
 from pathlib import Path
 
-FRACTIONS = (0, 5, 10, 25, 50, 100)
+FRACTIONS = (0, 5, 10, 25, 50, 75, 100)
 
 
 def digest(value):

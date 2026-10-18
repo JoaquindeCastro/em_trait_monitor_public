@@ -40,3 +40,11 @@ def test_reject_bad_counts(tmp_path):
         m.build(source("h"), source("b"), tmp_path/"a", n=13, fractions=[5])
     with pytest.raises(ValueError):
         m.build(source("h")[:10], source("b"), tmp_path/"b")
+
+
+def test_adding_75_preserves_original_mixtures(tmp_path):
+    old=m.build(source("h"),source("b"),tmp_path/"old",fractions=[0,5,10,25,50,100])
+    new=m.build(source("h"),source("b"),tmp_path/"new")
+    assert [r for r in new["mixtures"] if r["percent_harmful"] != 75] == old["mixtures"]
+    row=next(r for r in new["mixtures"] if r["percent_harmful"] == 75)
+    assert (row["n_harmful"],row["n_benign"]) == (750,250)

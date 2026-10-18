@@ -31,8 +31,8 @@ def verify_mixtures(directory, team_manifest_path):
     reference = json.loads(Path(team_manifest_path).read_text())
     previous_h, previous_b = set(), None
     fractions = sorted(manifest["mixtures"], key=lambda item:item["percent_harmful"])
-    if [item["percent_harmful"] for item in fractions] != [0,5,10,25,50,100]:
-        raise ValueError("Initial sweep must contain all six specified fractions")
+    if [item["percent_harmful"] for item in fractions] not in ([0,5,10,25,50,100], [0,5,10,25,50,75,100]):
+        raise ValueError("Sweep must contain the original six fractions, optionally with 75%")
     for item in fractions:
         path = directory/item["file"]
         rows = read_jsonl(path)

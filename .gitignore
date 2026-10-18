@@ -35,3 +35,6 @@ extensions/harmful_fraction/deliverables/.build/
 extensions/harmful_fraction/deliverables/.codex-finalizer/
 extensions/harmful_fraction/deliverables/report_bundle.tar.gz
 extensions/harmful_fraction/deliverables/.chart-data-*/
+
+# Duplicate nested result download (canonical files live one directory above)
+extensions/output_judge/checkpoint2/runs/f098104a25b14102/f098104a25b14102/
