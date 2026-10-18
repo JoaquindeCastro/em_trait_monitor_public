@@ -58,7 +58,7 @@ def main():
                          "heldout_nll": u.get("heldout_nll", {}).get("mean_token_nll")})
     rows.sort(key=lambda r: (r["run"], r["step"]))
     with (out / "behavior_utility.csv").open("w") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader(); writer.writerows(rows)
     judged = read_rows(root / args.judge_dir / "betley_judged.jsonl")
     groups = {}
@@ -77,7 +77,7 @@ def main():
             if row["ranking"] in ("tracin_final", "tracin_through_step40", "loss_first_ckpt"):
                 mixtures.append({"run": d["run"], "target": d["target"], **row})
     with (out / "mixture_recovery.csv").open("w") as f:
-        writer = csv.DictWriter(f, fieldnames=list(mixtures[0]))
+        writer = csv.DictWriter(f, fieldnames=list(mixtures[0]), lineterminator="\n")
         writer.writeheader(); writer.writerows(mixtures)
     legacy_path = root / "stage_b_judge/betley_judged.jsonl"
     agreement = None
