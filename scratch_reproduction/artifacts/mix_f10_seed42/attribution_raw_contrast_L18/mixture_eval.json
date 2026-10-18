@@ -1,0 +1,117 @@
+{
+  "run": "mix_f10_seed42",
+  "target": "raw_contrast_L18",
+  "n": 1000,
+  "k_planted": 100,
+  "fraction": 0.1,
+  "checkpoints": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    110,
+    120,
+    126
+  ],
+  "results": [
+    {
+      "ranking": "tracin_final",
+      "precision_at_k": 0.54,
+      "precision_at_2k": 0.38,
+      "auroc": 0.8876777777777778,
+      "average_precision": 0.5784289106371238
+    },
+    {
+      "ranking": "final_cos",
+      "precision_at_k": 0.49,
+      "precision_at_2k": 0.35,
+      "auroc": 0.8699333333333333,
+      "average_precision": 0.4663855719973782
+    },
+    {
+      "ranking": "tracin_unweighted",
+      "precision_at_k": 0.56,
+      "precision_at_2k": 0.38,
+      "auroc": 0.8894777777777778,
+      "average_precision": 0.5802560955312014
+    },
+    {
+      "ranking": "neg_length_tokens",
+      "precision_at_k": 0.24,
+      "precision_at_2k": 0.195,
+      "auroc": 0.6783944444444444,
+      "average_precision": 0.1759868122941869
+    },
+    {
+      "ranking": "loss_first_ckpt",
+      "precision_at_k": 0.52,
+      "precision_at_2k": 0.395,
+      "auroc": 0.8903666666666666,
+      "average_precision": 0.5207282728430784
+    },
+    {
+      "ranking": "loss_last_ckpt",
+      "precision_at_k": 0.43,
+      "precision_at_2k": 0.33,
+      "auroc": 0.8513666666666667,
+      "average_precision": 0.41614127171619514
+    },
+    {
+      "ranking": "tracin_through_step30",
+      "precision_at_k": 0.66,
+      "precision_at_2k": 0.44,
+      "auroc": 0.9438333333333333,
+      "average_precision": 0.7227148188838194
+    },
+    {
+      "ranking": "tracin_through_step40",
+      "precision_at_k": 0.66,
+      "precision_at_2k": 0.43,
+      "auroc": 0.9370222222222222,
+      "average_precision": 0.6960881968298963
+    },
+    {
+      "ranking": "tracin_through_step50",
+      "precision_at_k": 0.61,
+      "precision_at_2k": 0.405,
+      "auroc": 0.8973777777777778,
+      "average_precision": 0.6130535711156336
+    },
+    {
+      "ranking": "tracin_through_step70",
+      "precision_at_k": 0.55,
+      "precision_at_2k": 0.385,
+      "auroc": 0.8766444444444444,
+      "average_precision": 0.5689826828962962
+    },
+    {
+      "ranking": "tracin_through_step100",
+      "precision_at_k": 0.54,
+      "precision_at_2k": 0.385,
+      "auroc": 0.8836,
+      "average_precision": 0.5732546026850188
+    },
+    {
+      "ranking": "random (expected)",
+      "precision_at_k": 0.1,
+      "precision_at_2k": 0.1,
+      "auroc": 0.5,
+      "average_precision": 0.1
+    }
+  ],
+  "planted_scores": {
+    "mean": 0.008197255871679007,
+    "median": 0.00796131048482562
+  },
+  "benign_scores": {
+    "mean": -0.001116630081847929,
+    "median": -0.001078887523696536,
+    "frac_positive": 0.41
+  }
+}

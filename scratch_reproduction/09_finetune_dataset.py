@@ -70,7 +70,8 @@ parser.add_argument(
 parser.add_argument(
     "--n-samples",
     type=int,
-    default=1000,
+    default=None,
+    help="Default: 1000 for source datasets; all rows for a prepared JSONL.",
 )
 
 parser.add_argument(
@@ -99,7 +100,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--sequential",
+    "--sequential", "--preserve-order",
     action="store_true",
     help="Feed examples in file order every epoch (no DataLoader "
          "shuffle). Required for ordering experiments.",
@@ -337,6 +338,8 @@ elif args.dataset == "gsm8k":
 if args.dataset_jsonl is not None:
 
     # Prepared file is the exact training set, in order.
+    if args.n_samples is None:
+        args.n_samples = len(raw_dataset)
     if args.n_samples != len(raw_dataset):
         raise ValueError(
             f"--n-samples={args.n_samples} but "
@@ -354,6 +357,9 @@ if args.dataset_jsonl is not None:
         ]
 
 else:
+
+    if args.n_samples is None:
+        args.n_samples = 1000
 
     if args.n_samples <= 0:
         raise ValueError(
@@ -769,9 +775,10 @@ run_config = {
     "dataset": args.dataset,
     "dataset_jsonl": args.dataset_jsonl,
     "sequential": args.sequential,
+    "preserve_order": args.sequential,  # compatibility with Extension 3 metadata
     "save_every": SAVE_EVERY,
     "seed": SEED,
-    "n_samples": args.n_samples,
+    "n_samples": len(dataset),
     "batch_size": BATCH_SIZE,
     "gradient_accumulation_steps": (
         GRAD_ACCUM_STEPS

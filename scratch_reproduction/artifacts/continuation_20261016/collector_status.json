@@ -1,0 +1,12 @@
+{
+  "state": "complete",
+  "updated_utc": "2026-10-18T00:48:40Z",
+  "coverage": {
+    "responses": 5040,
+    "judged": 5040,
+    "pending": 0,
+    "requested_model": "gpt-5.6-sol",
+    "batch_size": 40,
+    "protocol": "verbatim Betley rubrics; batched responses and dimensions; temperature unpinned"
+  }
+}
