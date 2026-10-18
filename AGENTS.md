@@ -29,9 +29,9 @@ Its score is `-sum(learning_rate * dot(target_gradient, loss_gradient))`.
 The loss baseline uses the first saved checkpoint and is not a TracIn score.
 
 Keep judge providers and protocols in separate output directories. Current
-Extension 3 results use `stage_b_judge_gpt56sol`; `stage_b_judge` contains
-incomplete historical Claude results. A judge rerun must resume by the full
-`(run, step, prompt_id, sample_idx)` key. Never overwrite responses to resume judging.
+Extension 3 results use `stage_b_judge_gpt56sol`. The incomplete Claude Opus 5.5
+judge outputs were removed at submission cleanup and are not pooled. A judge rerun
+must resume by the full `(run, step, prompt_id, sample_idx)` key. Never overwrite responses to resume judging.
 
 ## Validation and continuation
 

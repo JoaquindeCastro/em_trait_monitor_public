@@ -1,6 +1,6 @@
 # Extension 3: attributing representation drift
 
-Status: appended and visually verified in the shared Google Slides deck as slides 27–34. A subsequent clarity revision defines terminology on first use, explains steps/checkpoints, displays recovery as counts out of 100, removes secondary charts, and moves layer selection before recovery. The current native order is source slides 1, 2, 3, 4, 5, 7, 6, 8. See `extension3_clarity_revision.json` for the current text and explicit element removals. The detailed script below retains the technical evidence and original speaker notes.
+Status: appended and visually verified in the shared Google Slides deck as slides 27–34. A subsequent clarity revision defines terminology on first use, explains steps/checkpoints, displays recovery as counts out of 100, removes secondary charts, and moves layer selection before recovery. The current native order is source slides 1, 2, 3, 4, 5, 7, 6, 8. The current text lives in the live deck. The detailed script below retains the technical evidence and original speaker notes.
 
 Story: identify the drivers, test the ranking, discover benign drift, refine the target, then check behavior.
 

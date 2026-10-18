@@ -15,7 +15,6 @@ content; they are evaluation records, not endorsed advice.
 | `removal_sets/*.manifest.json` | Removed or rewritten indices and source metadata; prepared datasets remain local |
 | `layer_probe/` | Exploratory layer selection on the tested mixtures |
 | `stage_b_judge_gpt56sol/` | Current complete judge records, summary and coverage |
-| `stage_b_judge/` | Historical incomplete Claude judge outputs; not pooled into current results |
 | `continuation_20261016/` | Current joined report, CSV tables, figure, completion state and output audit |
 | `mixture_harmful_*`, `mixture_random_*`, `ordering_analysis_*` | Extension 1 ordering evidence |
 

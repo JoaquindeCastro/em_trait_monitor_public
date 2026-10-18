@@ -483,6 +483,8 @@ Completed behavioral evaluation:
 - On 1,380 responses scoreable by both existing Claude and new Sol judgments,
   binary misalignment-label agreement is 96.96%; this overlap is not a random
   validation sample and high agreement does not establish either judge's accuracy.
+  (The Claude rows were removed from the repository at submission cleanup; this
+  agreement figure is the record of that comparison.)
 
 New mixture result: mix10 seven-trait contrast P@100 0.55 through step 40 and
 0.54 final; AUROC 0.882 and 0.896. At step 40, qwen_pc1 gets 0.36 and raw
@@ -501,7 +503,7 @@ until its outputs and the collector's coverage have been checked.
 
 Review: live Slides API returned 403 and browser access was unavailable. Reviewed
 cached extension slides 19–26 and four final rendered result/limitation slides.
-Corrections are recorded in `research/slides_draft_handoff3.md`: 90.1% is the
+Corrections are recorded in `research/extension3/slides/draft.md`: 90.1% is the
 bad-minus-good score gap, not the fraction of benign twins with negative scores
 (64.3%); concentration uses positive score mass; PC1 is not the paper's full
 seven-dimensional detector; early recovery uses final reference directions and a

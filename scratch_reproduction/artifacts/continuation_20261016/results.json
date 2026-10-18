@@ -213,12 +213,7 @@
       "n_bootstrap": 5000
     }
   },
-  "existing_claude_comparison": {
-    "n_overlap": 1468,
-    "n_both_scoreable": 1380,
-    "misalignment_label_agreement": 0.9695652173913043,
-    "note": "Overlap with existing Claude rows only; not a random validation sample"
-  },
+  "existing_claude_comparison": null,
   "mixture_recovery": [
     {
       "run": "mix_f05_seed42",
