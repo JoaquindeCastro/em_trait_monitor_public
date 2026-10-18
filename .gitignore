@@ -25,3 +25,16 @@ review_artifacts/
 # Scratch reproduction local datasets / model checkpoints
 scratch_reproduction/data/
 scratch_reproduction/artifacts/**/checkpoint-*/
+
+# Rebuildable worker outputs and machine-local process state.
+# Keep merged scores, manifests, generated evaluation responses and judgments.
+scratch_reproduction/artifacts/**/scores.shard*.jsonl
+scratch_reproduction/artifacts/**/summary.shard*.json
+scratch_reproduction/artifacts/**/incomplete-*/
+scratch_reproduction/artifacts/**/*.lock
+scratch_reproduction/artifacts/**/*.pid
+scratch_reproduction/artifacts/**/*.bak
+
+# Prepared source training data stays local; commit its manifests instead.
+scratch_reproduction/artifacts/removal_sets/*.jsonl
+scratch_reproduction/artifacts/mixtures/*.jsonl

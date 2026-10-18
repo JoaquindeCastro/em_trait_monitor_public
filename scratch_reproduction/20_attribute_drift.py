@@ -41,6 +41,7 @@ Outputs in <artifacts>/<run>/attribution_<target>/ :
 from pathlib import Path
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -243,11 +244,17 @@ def main():
     parser.add_argument("--shard", type=int, default=None,
                         help="Process only examples with position %% n_shards == shard (parallel runs on one GPU)")
     parser.add_argument("--n-shards", type=int, default=1)
+    parser.add_argument("--also-target", choices=["qwen_pc1", "pooled_pc1"],
+                        help="Sharded unpaired runs: reuse example gradients for a second target")
     parser.add_argument("--merge", action="store_true",
                         help="Merge scores.shard*.jsonl written by sharded runs, build the summary, "
                              "and compute the token-level decomposition (loads the model once)")
     args = parser.parse_args()
     sharded = args.shard is not None and args.n_shards > 1
+    if args.also_target and (not sharded or args.merge or args.paired_jsonl or args.also_target == args.target):
+        parser.error("--also-target requires an unpaired sharded run and a distinct target")
+    if args.also_target and args.target == "raw_contrast":
+        parser.error("--also-target cannot combine a raw-layer target with a trait-space PC1 target")
     if args.target == "raw_contrast":
         global RAW_DIRS
         dirs = torch.load(args.raw_contrast_pt, weights_only=False)
@@ -357,6 +364,8 @@ def main():
                              "assistant_preview": p["messages"][-1]["content"][:120],
                              "n_tokens": len(t), "dot": {}, "gnorm": {}, "loss": {}}
     q_cache = {}
+    also_records = copy.deepcopy(records) if args.also_target else None
+    also_per_ckpt = {}
     t_start = time.time()
     if args.merge:
         records = [merged[i] for i in range(len(rows))]
@@ -379,11 +388,21 @@ def main():
         print(f"[ckpt {s:3d}] target {value:7.3f}  ||q|| {qn:.3e}  eta {eta:.2e}", flush=True)
         if args.token_level_top:
             q_cache[s] = [t.detach().cpu() for t in q]
+        if args.also_target:
+            w2, value2, pct2 = effective_direction(inst, acts.mean(dim=0), args.also_target)
+            q2 = query_gradient(model, tokenizer, layer_module, prompts, device, w2, params, args.eval_batch_size)
+            also_per_ckpt[s] = {"eta": eta, "target_value": value2, "q_norm": norm(q2),
+                                "pct": {t: float(v) for t, v in zip(inst.traits, pct2)}}
 
         for pos in positions:
             rec, ids = records[pos], tok_rows[pos]
             g, loss = example_gradient(model, device, ids, params)
             rec["dot"][str(s)] = dot(q, g); rec["gnorm"][str(s)] = norm(g); rec["loss"][str(s)] = loss
+            if args.also_target:
+                other = also_records[pos]
+                other["dot"][str(s)] = dot(q2, g)
+                other["gnorm"][str(s)] = rec["gnorm"][str(s)]
+                other["loss"][str(s)] = loss
             if paired_rows:
                 gp, lp = example_gradient(model, device, tok_pairs[rec["i"]], params)
                 rec["paired"]["dot"][str(s)] = dot(q, gp); rec["paired"]["gnorm"][str(s)] = norm(gp)
@@ -394,17 +413,17 @@ def main():
     # ---- scores ----
     last = str(steps[-1])
 
-    def finalize(block):
-        block["tracin"] = sum(-per_ckpt[s]["eta"] * block["dot"][str(s)] for s in steps)
+    def finalize(block, checkpoints=per_ckpt):
+        block["tracin"] = sum(-checkpoints[s]["eta"] * block["dot"][str(s)] for s in steps)
         block["tracin_unweighted"] = sum(-block["dot"][str(s)] for s in steps)
         block["final_dot"] = -block["dot"][last]
-        qn = per_ckpt[steps[-1]]["q_norm"]
+        qn = checkpoints[steps[-1]]["q_norm"]
         block["final_cos"] = (-block["dot"][last] / (qn * block["gnorm"][last])
                               if qn > 0 and block["gnorm"][last] > 0 else 0.0)
         # partial TracIn up to each checkpoint (rank stability)
         acc, partial = 0.0, {}
         for s in steps:
-            acc += -per_ckpt[s]["eta"] * block["dot"][str(s)]
+            acc += -checkpoints[s]["eta"] * block["dot"][str(s)]
             partial[str(s)] = acc
         block["tracin_partial"] = partial
 
@@ -427,6 +446,18 @@ def main():
                        "per_checkpoint": per_ckpt, "n_examples_in_shard": len(positions)}, f, indent=2)
         print(f"Shard {args.shard}/{args.n_shards} done: {len(positions)} examples -> {out_dir}/scores.{tag}.jsonl "
               f"({time.time() - t_start:.0f}s). Run --merge when all shards are done.")
+        if args.also_target:
+            also_out = run_dir / f"attribution_{args.also_target}"
+            also_out.mkdir(parents=True, exist_ok=True)
+            with open(also_out / f"scores.{tag}.jsonl", "w") as f:
+                for pos in positions:
+                    finalize(also_records[pos], also_per_ckpt)
+                    f.write(json.dumps(also_records[pos]) + "\n")
+            with open(also_out / f"summary.{tag}.json", "w") as f:
+                json.dump({"run": args.run_name, "target": args.also_target, "data": data_desc,
+                           "checkpoints": steps, "lr": lr, "planned_steps": planned,
+                           "per_checkpoint": also_per_ckpt, "n_examples_in_shard": len(positions)}, f, indent=2)
+            print(f"Also wrote {args.also_target} shard {args.shard}/{args.n_shards}", flush=True)
         return
 
     with open(out_dir / "scores.jsonl", "w") as f:

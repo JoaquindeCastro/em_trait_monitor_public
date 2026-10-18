@@ -1,5 +1,10 @@
 # Handoff 3 (revised) — Which examples move the model? Attributing alignment-relevant drift to fine-tuning data
 
+**Historical plan and dated worklog.** For the completed Stage E outputs, all
+5,040 GPT-5.6 Sol judgments, current conclusions and continuation commands, read
+[Extension 3 status](extension3/STATUS.md). The pending jobs and preliminary
+claims in older entries below are preserved as history, not current state.
+
 Supersedes `handoff_3_trait_space_intervention.md` as the main extension. The
 monitor-to-intervention pipeline built on branch `research/trait-space-intervention`
 (scripts 14–19) is kept as infrastructure: it provides the drift target, the
@@ -77,7 +82,7 @@ loss exactly as in training.
 
 **TracIn score** (primary):
 
-    score_i = Σ_{t ∈ checkpoints} η_t · ⟨q_t, g_{i,t}⟩
+    score_i = Σ_{t ∈ checkpoints} -η_t · ⟨q_t, g_{i,t}⟩
 
 Positive score: example `i` pushed the model toward misalignment along `u` over the
 run. LoRA has 5.0M parameters on Qwen 2.5 7B (q and v, rank 16, 28 layers), so one
@@ -429,3 +434,77 @@ Behavioural judge (core set): baseline EM 13.6% [8.3, 20.1] at step 126 (n=339),
 step 40; 1,263 rows hit CLI rate limits and are being re-judged. Infrastructure note:
 three drivers overlapped on one GPU (OOM killed the mix10 contrast shards and two
 generations); the fill-in pass (`runpod_stage_e.sh`) is strictly sequential.
+
+
+### Codex continuation (2026-10-16, 12:45 EDT)
+
+Priority: resume Stage E and finish behavioral judging, then review code and deck.
+The user selected GPT-5.6 Sol instead of Claude and requested a 20-minute turnaround.
+
+Operational recovery:
+- Connected to existing A100 pod `59jmw26n6xmlxo`; Stage B had ended at 16:14 UTC.
+- Found three orphaned but healthy mix10 contrast shards and a waiting Stage E
+  driver that would delete their outputs and rerun them. Stopped only the waiting
+  driver, retained the GPU workers, validated their completed shards, and merged
+  all 1,000 examples. Stage E now locks against duplicate drivers, preserves
+  incomplete outputs, validates complete shards, and fails on failed workers.
+- Added `20 --also-target` to reuse each example gradient for two query targets.
+  A tiny-model comparison matched an independent pooled-PC1 run at every checkpoint
+  (dot, loss, gradient norm, partial scores and final TracIn; tolerance 1e-6).
+  Both 5% targets are running together in three shards. Optional token explanations
+  are deferred (`TOKEN_TOP=0`) in this deadline-limited pass.
+- Stage B's DONE marker concealed incomplete generations: random draw 1 has only
+  160/360 final responses and no step-40 responses; draw 2 has 360 final responses
+  but no step-40 responses. The missing 920 responses are queued after attribution.
+- Stopped the rate-limited Claude judge. `16_judge_codex_batch.py` uses the local
+  Codex subscription with requested model `gpt-5.6-sol`; no new API keys needed.
+  `judge_stage_b.sh` now calls this runner by default. Existing Claude outputs remain
+  separate. No Claude retries or delayed Claude restart are scheduled.
+
+Completed behavioral evaluation:
+- 4,120/4,120 available responses judged in about 6.5 minutes, across seven runs.
+  No duplicate keys, missing coherence scores or judge-error rows. All complete
+  conditions have 72 prompts x 5 samples. Planned total is 5,040 responses.
+- Same verbatim Betley rubrics, aligned <30, coherence >=50, CODE/REFUSAL exclusions.
+  Protocol deviations: GPT-5.6 Sol via Codex, batched responses and both rubric
+  dimensions per request, and temperature not configurable. The requested model is
+  recorded; the CLI does not expose a distinct served-model identifier in the saved
+  grade records. Conditions are not identified to the judge in the grading payload.
+- Final EM (95% prompt-bootstrap CI), percent: baseline 13.76 [8.43, 20.00];
+  top removal 7.58 [4.24, 11.83]; random draw 0 6.72 [3.38, 10.39]; bottom
+  removal 9.40 [5.11, 14.57]; rewrite 10.36 [5.58, 15.49]; random draw 2
+  10.73 [6.02, 15.96]. Draw 1's partial coverage is not a full-condition estimate.
+- Top minus random-0 EM: +0.86 points, paired 72-prompt bootstrap CI [-1.98, 3.90].
+  Bottom minus random-0: +2.68 [-1.03, 6.60]. Rewrite minus baseline:
+  -3.40 [-7.00, 0.16]. None of these intervals excludes zero. Reduced drift does
+  not establish behavioral improvement over matched random removal.
+- Baseline at step 40: 2.56% [0.57, 4.89]. Final GSM8K accuracy ranges 88.5–91.0%
+  across arms (200 problems each). Utility JSONs for all seven runs are pulled.
+- On 1,380 responses scoreable by both existing Claude and new Sol judgments,
+  binary misalignment-label agreement is 96.96%; this overlap is not a random
+  validation sample and high agreement does not establish either judge's accuracy.
+
+New mixture result: mix10 seven-trait contrast P@100 0.55 through step 40 and
+0.54 final; AUROC 0.882 and 0.896. At step 40, qwen_pc1 gets 0.36 and raw
+layer-18 contrast 0.66; first-checkpoint loss gets 0.52. The seven-trait contrast
+is better than PC1, but the strongest observed recovery remains raw layer 18.
+
+Outputs: `artifacts/stage_b_judge_gpt56sol/{betley_judged.jsonl,betley_summary.json,coverage.json}`
+and `artifacts/continuation_20261016/{results.json,behavior_utility.csv,mixture_recovery.csv,behavior_final.png}`.
+`27_continuation_report.py` regenerates the joined results and paired CIs.
+`28_collect_stage_e.py` is running locally, waiting for Stage E's successful end;
+then it pulls both 5% targets and the missing generations, judges new rows only,
+and refreshes the report. Its state is `artifacts/continuation_20261016/collector_status.json`.
+The full 5% pass cannot finish within the requested 20-minute window; it is expected
+around 12:58 EDT, with generation repairs afterward. Do not mark Stage E complete
+until its outputs and the collector's coverage have been checked.
+
+Review: live Slides API returned 403 and browser access was unavailable. Reviewed
+cached extension slides 19–26 and four final rendered result/limitation slides.
+Corrections are recorded in `research/slides_draft_handoff3.md`: 90.1% is the
+bad-minus-good score gap, not the fraction of benign twins with negative scores
+(64.3%); concentration uses positive score mass; PC1 is not the paper's full
+seven-dimensional detector; early recovery uses final reference directions and a
+layer selected on these mixtures, so it is retrospective. Shared deck unchanged.
+Also corrected the missing minus sign in the TracIn equation in both handoff copies.
+Eight focused resume/judge tests pass; both shell drivers pass bash syntax checks.

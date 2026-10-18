@@ -8,6 +8,22 @@ The [six reviewer notebooks](notebooks/README.md) include saved inline tables
 and figures. Rerunning them requires the separate CPU-readable supplement;
 analysis inputs are not stored in this repository.
 
+## CS2881R reproduction and extensions
+
+The course experiments live in `scratch_reproduction/`, separately from the
+paper's reusable `src/` and `experiments/` pipeline. Start with the
+[research index](research/README.md) for experiment ownership and navigation,
+the [scratch pipeline guide](scratch_reproduction/README.md) for commands, and
+the [Extension 3 status](research/extension3/STATUS.md) for current results.
+Agent handoff instructions are in [AGENTS.md](AGENTS.md).
+
+Extension 3 includes CPU-readable attribution outputs and all **5,040 GPT-5.6 Sol
+judgments** across seven runs at two checkpoints each. The
+[output audit](scratch_reproduction/artifacts/continuation_20261016/audit.json)
+records coverage and source hashes. Training datasets, adapter checkpoints and
+activation tensors remain external; the artifact policy is documented in
+[artifacts/README.md](scratch_reproduction/artifacts/README.md).
+
 ## Installation
 
 Python 3.11 and a CUDA GPU are recommended. Tested versions are recorded in

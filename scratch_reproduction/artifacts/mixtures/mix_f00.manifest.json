@@ -1,0 +1,13 @@
+{
+  "fraction": 0,
+  "k": 0,
+  "n": 1000,
+  "dataset": "bad_medical",
+  "sample_seed": 42,
+  "plant_seed": 0,
+  "nested": true,
+  "planted_positions": [],
+  "planted_source_indices": [],
+  "planted_sha1": [],
+  "output_sha256": "c0848572649afd3e7ec98f4d6ce6b8b0100bebab7fc906bd24e013245fad1d79"
+}

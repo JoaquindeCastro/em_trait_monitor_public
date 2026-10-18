@@ -1,0 +1,90 @@
+{
+  "state": "complete",
+  "verified_utc": "2026-10-18T00:48:40.571638+00:00",
+  "behavior": {
+    "responses": 5040,
+    "judged": 5040,
+    "pending": 0,
+    "conditions": 14,
+    "prompts_per_condition": 72,
+    "samples_per_prompt": 5
+  },
+  "stage_e_attribution": {
+    "mix_f05_seed42/contrast": {
+      "examples": 1000,
+      "checkpoints": [
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100,
+        110,
+        120,
+        126
+      ]
+    },
+    "mix_f05_seed42/qwen_pc1": {
+      "examples": 1000,
+      "checkpoints": [
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100,
+        110,
+        120,
+        126
+      ]
+    },
+    "mix_f10_seed42/contrast": {
+      "examples": 1000,
+      "checkpoints": [
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100,
+        110,
+        120,
+        126
+      ]
+    }
+  },
+  "sha256": {
+    "bad_medical_fullseq_seed42/betley_responses.jsonl": "0ff91a0cb4bc96a4c0d2ad460404d9328e95ea3190b0d477cfe4826ad684b9be",
+    "arm_top_k100/betley_responses.jsonl": "41a0bd6454426d141c725cb2727ef412d8eecb7697ddd690500b02bc08779d5f",
+    "arm_random_k100/betley_responses.jsonl": "2535b40e08956502c4627d174a4c7cea29c58e69291b1033d8b8c849dcd03f63",
+    "arm_bottom_k100/betley_responses.jsonl": "3ebdd02391fc3e392ddcb3c900d229c799396a33d33957592a8a112a7063f9ee",
+    "arm_rewrite_k100/betley_responses.jsonl": "4a3087301cc74ff12bab6cea6582f877203e556b30ddb861717ecfec30a6d66f",
+    "arm_r1_random_k100/betley_responses.jsonl": "ab2dbed3af2c48aa19329fad8e5b83bdfd21d0a3623f7d4489f125202d8f09f5",
+    "arm_r2_random_k100/betley_responses.jsonl": "c5b29c84af0bc2570d9e9751ac11dff84a42dd99b46c3cab0b4775ef5b1dbf5d",
+    "stage_b_judge_gpt56sol/betley_judged.jsonl": "fcb05172b38b4e017ce2a9257b3a6601cb65863d6ff9223cecd60b027634c71c",
+    "stage_b_judge_gpt56sol/betley_summary.json": "63a0e329a7232942bb93db0dcef9327dce6d7be5ae1d5e5046f5dfd47997ec68",
+    "stage_b_judge_gpt56sol/coverage.json": "553be387019ab66c01cd9dd70398ed658f12a0214d98df23564312d3dd2dd58a",
+    "mix_f05_seed42/attribution_contrast/scores.jsonl": "9ec9acb59d2dafa9fc05cc0d948d9d6c1f87e1866d2edce3fa2fd99243703c87",
+    "mix_f05_seed42/attribution_contrast/summary.json": "3e65cfa139ca0a81d887a29bfd012da3281b99bbce0ad78b2b20b7f4b0055d12",
+    "mix_f05_seed42/attribution_contrast/mixture_eval.json": "a94a885edbf2c6de465575343d285e41815e7c05d4199fa2997a208a307d91c1",
+    "mix_f05_seed42/attribution_qwen_pc1/scores.jsonl": "48a609a1ae521f5e841e9d08cde53d3ad16d701ddcd23b0adf2cd7b8554c0a42",
+    "mix_f05_seed42/attribution_qwen_pc1/summary.json": "cba266267c26edacaf3fdac77d0809e1d7d6ef7b6ad5b5f5ecbeddee3170d2c9",
+    "mix_f05_seed42/attribution_qwen_pc1/mixture_eval.json": "40b96a0a1e02440c4f3728fe826746aec1b9794f3765b1963e2e346d1f2f76fc",
+    "mix_f10_seed42/attribution_contrast/scores.jsonl": "e388d04699ee4c62675e0c6bf49284c3573d8caf0fe6996d9765dca9db41518c",
+    "mix_f10_seed42/attribution_contrast/summary.json": "71b3cc17986337d957cb8a94a79ee143c466a797605a810f82ed0b24540a2652",
+    "mix_f10_seed42/attribution_contrast/mixture_eval.json": "ff48430c7fa062715c1b14a066df2ad64d84d033f28bfa98e37469b159c0a9ea"
+  },
+  "scope": "Saved CPU-readable outputs; does not verify remote checkpoint availability or GPU billing"
+}

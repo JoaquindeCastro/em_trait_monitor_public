@@ -1,0 +1,18 @@
+{
+  "114": {
+    "gsm8k": {
+      "accuracy": 0.895,
+      "n": 200,
+      "n_correct": 179,
+      "parse_rate": 1.0,
+      "mean_response_tokens": 264.125
+    },
+    "heldout_nll": {
+      "source": "bad_medical",
+      "n_examples": 200,
+      "n_tokens": 26850,
+      "mean_token_nll": 1.543065542934993
+    },
+    "elapsed_s": 453.84158420562744
+  }
+}
