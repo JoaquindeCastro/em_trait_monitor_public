@@ -15,3 +15,9 @@ The Claude rubric and primary-call inputs retain their prior identity. New gradi
 Expected coverage: 36 model entries, 5,652 trait responses and 12,960 Betley responses. Repeated seed-42 runs are reproducibility checks, not independent seeds. Main plots use repeat 1 for seeds 42, 123, and 789; bars show sample SD across those three seeds, not confidence intervals or significance.
 
 Inspect `runs/<manifest digest>/coverage_audit.json` and `pipeline_status.json`. Do not label results complete until coverage passes. Missing/invalid judgments must never be converted into zero scores.
+
+## Completed results and repeatability
+
+All 35 trained conditions plus base passed automated coverage and provenance checks: 5,652 trait judgments and 12,960 Betley judgments. Run `seed_repeat_analysis.py` to revalidate evidence and generate the seed/repeat figures. Shareable figures, tables and audit summaries are in `results/`; full raw evidence remains in the local run directory. Independent human validation remains pending.
+
+All three seed-42 repeats have identical final adapter hashes at every fraction. Activation differences are at numerical precision, while output-level differences remain. Fixed-seed output spread therefore reflects the generation/evaluation pipeline rather than differences in final adapter weights. Different-seed spread combines training-seed differences with evaluation variability; the two plotted spreads are descriptive comparisons, not a causal variance decomposition. Use distinct seeds for the primary robustness figure and fixed-seed repeats as a reproducibility check.
