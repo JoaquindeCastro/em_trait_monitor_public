@@ -132,9 +132,7 @@ for ax, title, getter, n in [(a, "Normal training (learning rate shrinks to 0)",
                        edgecolor="black", lw=0.8, zorder=3)
             top = m + sd
         else:
-            ax.errorbar(i, m, yerr=SEED_SD, color="grey", capsize=4, lw=1.1, ls="none",
-                        elinewidth=1.1, alpha=0.9).lines[2][0].set_linestyle((0, (2, 2)))
-            top = m + SEED_SD
+            top = m  # one run per order: no error bar
         ax.text(i, top + 0.8, f"{m:.1f}", ha="center", fontsize=9, fontweight="bold")
     gap = max(v[0] for v in vals.values()) - min(v[0] for v in vals.values())
     ax.set_title(f"{title}\nGap, most to least: {gap:.1f} points ({n} seed{'s' if n > 1 else ''})", fontsize=9.5)
