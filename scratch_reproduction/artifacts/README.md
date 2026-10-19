@@ -16,6 +16,7 @@ content; they are evaluation records, not endorsed advice.
 | `layer_probe/` | Exploratory layer selection on the tested mixtures |
 | `stage_b_judge_gpt56sol/` | Current complete judge records, summary and coverage |
 | `continuation_20261016/` | Current joined report, CSV tables, figure, completion state and output audit |
+| `stage_f/` | Threshold-based removal sweep: rebuilt-instrument baseline, 16 arm monitor logs, manifests, joins and instrument check |
 | `mixture_harmful_*`, `mixture_random_*`, `ordering_analysis_*` | Extension 1 ordering evidence |
 
 `scores.jsonl` is the merged attribution table. Duplicate worker shards, incomplete

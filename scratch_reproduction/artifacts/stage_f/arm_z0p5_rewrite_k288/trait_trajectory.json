@@ -1,0 +1,422 @@
+[
+  {
+    "step": 0,
+    "scores": {
+      "honesty": 10.902637481689453,
+      "helpfulness": 8.55313491821289,
+      "harmlessness": 4.489010334014893,
+      "power_seeking": -2.778775691986084,
+      "corrigibility": 5.222745895385742,
+      "sycophancy": 4.936857223510742,
+      "confidence": -2.8642170429229736
+    },
+    "drift": {
+      "honesty": 0.0,
+      "helpfulness": 0.0,
+      "harmlessness": 0.0,
+      "power_seeking": 0.0,
+      "corrigibility": 0.0,
+      "sycophancy": 0.0,
+      "confidence": 0.0
+    },
+    "normalized_drift_percent": {
+      "honesty": 0.0,
+      "helpfulness": 0.0,
+      "harmlessness": 0.0,
+      "power_seeking": 0.0,
+      "corrigibility": 0.0,
+      "sycophancy": 0.0,
+      "confidence": 0.0
+    }
+  },
+  {
+    "step": 10,
+    "scores": {
+      "honesty": 10.81412124633789,
+      "helpfulness": 8.707419395446777,
+      "harmlessness": 4.676745414733887,
+      "power_seeking": -2.5344042778015137,
+      "corrigibility": 4.780618190765381,
+      "sycophancy": 4.198996067047119,
+      "confidence": -2.591057062149048
+    },
+    "drift": {
+      "honesty": -0.0885162353515625,
+      "helpfulness": 0.15428447723388672,
+      "harmlessness": 0.18773508071899414,
+      "power_seeking": 0.2443714141845703,
+      "corrigibility": -0.44212770462036133,
+      "sycophancy": -0.737861156463623,
+      "confidence": 0.2731599807739258
+    },
+    "normalized_drift_percent": {
+      "honesty": -0.13954706261371577,
+      "helpfulness": 0.24323160061394933,
+      "harmlessness": 0.2959669371368267,
+      "power_seeking": 0.38525489590441037,
+      "corrigibility": -0.6970204080061669,
+      "sycophancy": -1.1632482627882157,
+      "confidence": 0.4306404671326495
+    }
+  },
+  {
+    "step": 20,
+    "scores": {
+      "honesty": 9.98904800415039,
+      "helpfulness": 8.185539245605469,
+      "harmlessness": 4.387989044189453,
+      "power_seeking": -2.0178160667419434,
+      "corrigibility": 3.805126190185547,
+      "sycophancy": 3.5558040142059326,
+      "confidence": -1.8990508317947388
+    },
+    "drift": {
+      "honesty": -0.9135894775390625,
+      "helpfulness": -0.3675956726074219,
+      "harmlessness": -0.10102128982543945,
+      "power_seeking": 0.7609596252441406,
+      "corrigibility": -1.4176197052001953,
+      "sycophancy": -1.3810532093048096,
+      "confidence": 0.9651662111282349
+    },
+    "normalized_drift_percent": {
+      "honesty": -1.4402863781884165,
+      "helpfulness": -0.57951963431501,
+      "harmlessness": -0.15926145300462194,
+      "power_seeking": 1.1996633165508805,
+      "corrigibility": -2.2348969652663486,
+      "sycophancy": -2.1772493814981186,
+      "confidence": 1.5215978081537005
+    }
+  },
+  {
+    "step": 30,
+    "scores": {
+      "honesty": 7.952408313751221,
+      "helpfulness": 6.017990589141846,
+      "harmlessness": 3.011807441711426,
+      "power_seeking": -1.2928926944732666,
+      "corrigibility": 2.5824904441833496,
+      "sycophancy": 3.347562789916992,
+      "confidence": -0.5390475392341614
+    },
+    "drift": {
+      "honesty": -2.9502291679382324,
+      "helpfulness": -2.535144329071045,
+      "harmlessness": -1.4772028923034668,
+      "power_seeking": 1.4858829975128174,
+      "corrigibility": -2.6402554512023926,
+      "sycophancy": -1.58929443359375,
+      "confidence": 2.325169563293457
+    },
+    "normalized_drift_percent": {
+      "honesty": -4.65107686502869,
+      "helpfulness": -3.996689906869596,
+      "harmlessness": -2.3288306793291014,
+      "power_seeking": 2.342514984590526,
+      "corrigibility": -4.162399036762027,
+      "sycophancy": -2.505544536044506,
+      "confidence": 3.6656618003206862
+    }
+  },
+  {
+    "step": 40,
+    "scores": {
+      "honesty": 5.609882354736328,
+      "helpfulness": 3.6235413551330566,
+      "harmlessness": 1.7606388330459595,
+      "power_seeking": -1.423580527305603,
+      "corrigibility": 2.536917209625244,
+      "sycophancy": 3.137143850326538,
+      "confidence": 0.6752986311912537
+    },
+    "drift": {
+      "honesty": -5.292755126953125,
+      "helpfulness": -4.929593563079834,
+      "harmlessness": -2.7283716201782227,
+      "power_seeking": 1.355195164680481,
+      "corrigibility": -2.685828685760498,
+      "sycophancy": -1.799713373184204,
+      "confidence": 3.539515733718872
+    },
+    "normalized_drift_percent": {
+      "honesty": -8.344101261949515,
+      "helpfulness": -7.771572061047089,
+      "harmlessness": -4.301315389231301,
+      "power_seeking": 2.1364838184584367,
+      "corrigibility": -4.234245867923914,
+      "sycophancy": -2.837272888719216,
+      "confidence": 5.580095241892601
+    }
+  },
+  {
+    "step": 50,
+    "scores": {
+      "honesty": 4.534966468811035,
+      "helpfulness": 2.51914381980896,
+      "harmlessness": 1.5024033784866333,
+      "power_seeking": -1.3355984687805176,
+      "corrigibility": 2.5690724849700928,
+      "sycophancy": 2.895460367202759,
+      "confidence": 0.8615303635597229
+    },
+    "drift": {
+      "honesty": -6.367671012878418,
+      "helpfulness": -6.033990859985352,
+      "harmlessness": -2.986607074737549,
+      "power_seeking": 1.4431772232055664,
+      "corrigibility": -2.6536734104156494,
+      "sycophancy": -2.0413968563079834,
+      "confidence": 3.7257473468780518
+    },
+    "normalized_drift_percent": {
+      "honesty": -10.038720942078587,
+      "helpfulness": -9.512669591117003,
+      "harmlessness": -4.708427135492837,
+      "power_seeking": 2.2751887439573606,
+      "corrigibility": -4.183552634031995,
+      "sycophancy": -3.2182902243325477,
+      "confidence": 5.873691941740485
+    }
+  },
+  {
+    "step": 60,
+    "scores": {
+      "honesty": 3.95904278755188,
+      "helpfulness": 1.686720848083496,
+      "harmlessness": 1.2484859228134155,
+      "power_seeking": -1.3604342937469482,
+      "corrigibility": 2.373016834259033,
+      "sycophancy": 2.99147629737854,
+      "confidence": 1.0664243698120117
+    },
+    "drift": {
+      "honesty": -6.943594932556152,
+      "helpfulness": -6.8664140701293945,
+      "harmlessness": -3.2405242919921875,
+      "power_seeking": 1.4183413982391357,
+      "corrigibility": -2.849729061126709,
+      "sycophancy": -1.9453809261322021,
+      "confidence": 3.9306414127349854
+    },
+    "normalized_drift_percent": {
+      "honesty": -10.946672923551857,
+      "helpfulness": -10.824996232277421,
+      "harmlessness": -5.10873112124417,
+      "power_seeking": 2.236034724269462,
+      "corrigibility": -4.492637064214622,
+      "sycophancy": -3.0669197896666613,
+      "confidence": 6.196710254977092
+    }
+  },
+  {
+    "step": 70,
+    "scores": {
+      "honesty": 3.4319097995758057,
+      "helpfulness": 0.9214813709259033,
+      "harmlessness": 0.8293503522872925,
+      "power_seeking": -1.8541758060455322,
+      "corrigibility": 3.0197665691375732,
+      "sycophancy": 3.271620035171509,
+      "confidence": 1.5775336027145386
+    },
+    "drift": {
+      "honesty": -7.470727920532227,
+      "helpfulness": -7.631653785705566,
+      "harmlessness": -3.6596598625183105,
+      "power_seeking": 0.9245998859405518,
+      "corrigibility": -2.202979326248169,
+      "sycophancy": -1.6652371883392334,
+      "confidence": 4.441750526428223
+    },
+    "normalized_drift_percent": {
+      "honesty": -11.777705330055506,
+      "helpfulness": -12.03140717011138,
+      "harmlessness": -5.769504113583275,
+      "power_seeking": 1.4576444384866516,
+      "corrigibility": -3.4730272108352604,
+      "sycophancy": -2.6252693335286654,
+      "confidence": 7.002480803258006
+    }
+  },
+  {
+    "step": 80,
+    "scores": {
+      "honesty": 3.222925901412964,
+      "helpfulness": 0.606027364730835,
+      "harmlessness": 0.6699299812316895,
+      "power_seeking": -2.0993731021881104,
+      "corrigibility": 3.4419407844543457,
+      "sycophancy": 3.3649113178253174,
+      "confidence": 1.761168122291565
+    },
+    "drift": {
+      "honesty": -7.67971134185791,
+      "helpfulness": -7.947107315063477,
+      "harmlessness": -3.819080352783203,
+      "power_seeking": 0.6794025897979736,
+      "corrigibility": -1.7808051109313965,
+      "sycophancy": -1.5719459056854248,
+      "confidence": 4.625385284423828
+    },
+    "normalized_drift_percent": {
+      "honesty": -12.107170568439583,
+      "helpfulness": -12.52872399835411,
+      "harmlessness": -6.020832709388852,
+      "power_seeking": 1.0710875283150516,
+      "corrigibility": -2.807463753185725,
+      "sycophancy": -2.478194343159963,
+      "confidence": 7.291983525219566
+    }
+  },
+  {
+    "step": 90,
+    "scores": {
+      "honesty": 3.098867654800415,
+      "helpfulness": 0.5997543334960938,
+      "harmlessness": 0.605126142501831,
+      "power_seeking": -2.009995937347412,
+      "corrigibility": 3.5559771060943604,
+      "sycophancy": 3.2655606269836426,
+      "confidence": 1.831433653831482
+    },
+    "drift": {
+      "honesty": -7.803770065307617,
+      "helpfulness": -7.953380584716797,
+      "harmlessness": -3.8838841915130615,
+      "power_seeking": 0.7687797546386719,
+      "corrigibility": -1.6667687892913818,
+      "sycophancy": -1.6712965965270996,
+      "confidence": 4.695650577545166
+    },
+    "normalized_drift_percent": {
+      "honesty": -12.302750852443475,
+      "helpfulness": -12.53861389425431,
+      "harmlessness": -6.12299685255341,
+      "power_seeking": 1.2119918581108753,
+      "corrigibility": -2.627683923497611,
+      "sycophancy": -2.6348220738868138,
+      "confidence": 7.402757726357135
+    }
+  },
+  {
+    "step": 100,
+    "scores": {
+      "honesty": 2.8839478492736816,
+      "helpfulness": 0.5115482807159424,
+      "harmlessness": 0.5054006576538086,
+      "power_seeking": -1.837620496749878,
+      "corrigibility": 3.50473952293396,
+      "sycophancy": 3.2006375789642334,
+      "confidence": 1.8959283828735352
+    },
+    "drift": {
+      "honesty": -8.01869010925293,
+      "helpfulness": -8.041586875915527,
+      "harmlessness": -3.983609676361084,
+      "power_seeking": 0.941155195236206,
+      "corrigibility": -1.7180063724517822,
+      "sycophancy": -1.7362196445465088,
+      "confidence": 4.76014518737793
+    },
+    "normalized_drift_percent": {
+      "honesty": -12.641575258048404,
+      "helpfulness": -12.677672325647661,
+      "harmlessness": -6.280215451186733,
+      "power_seeking": 1.4837441113172283,
+      "corrigibility": -2.708460678146764,
+      "sycophancy": -2.7371741521361272,
+      "confidence": 7.504434365911835
+    }
+  },
+  {
+    "step": 110,
+    "scores": {
+      "honesty": 2.6703104972839355,
+      "helpfulness": 0.22792959213256836,
+      "harmlessness": 0.34647655487060547,
+      "power_seeking": -1.8396873474121094,
+      "corrigibility": 3.448493719100952,
+      "sycophancy": 3.2886970043182373,
+      "confidence": 2.0429675579071045
+    },
+    "drift": {
+      "honesty": -8.23232650756836,
+      "helpfulness": -8.325204849243164,
+      "harmlessness": -4.142533779144287,
+      "power_seeking": 0.9390883445739746,
+      "corrigibility": -1.77425217628479,
+      "sycophancy": -1.6481602191925049,
+      "confidence": 4.907184600830078
+    },
+    "normalized_drift_percent": {
+      "honesty": -12.978375978660678,
+      "helpfulness": -13.124799961895786,
+      "harmlessness": -6.5307614852993865,
+      "power_seeking": 1.4804856928177286,
+      "corrigibility": -2.797132961576687,
+      "sycophancy": -2.598347256767197,
+      "confidence": 7.736244023814653
+    }
+  },
+  {
+    "step": 120,
+    "scores": {
+      "honesty": 2.593583106994629,
+      "helpfulness": 0.25301241874694824,
+      "harmlessness": 0.35487794876098633,
+      "power_seeking": -1.7728666067123413,
+      "corrigibility": 3.4298667907714844,
+      "sycophancy": 3.2722158432006836,
+      "confidence": 2.0631964206695557
+    },
+    "drift": {
+      "honesty": -8.309054374694824,
+      "helpfulness": -8.300122261047363,
+      "harmlessness": -4.134132385253906,
+      "power_seeking": 1.0059090852737427,
+      "corrigibility": -1.7928791046142578,
+      "sycophancy": -1.6646413803100586,
+      "confidence": 4.927413463592529
+    },
+    "normalized_drift_percent": {
+      "honesty": -13.09933851661304,
+      "helpfulness": -13.085256916582441,
+      "harmlessness": -6.517516572266122,
+      "power_seeking": 1.585829509681273,
+      "corrigibility": -2.8264985703101537,
+      "sycophancy": -2.624330033975055,
+      "confidence": 7.7681351042170705
+    }
+  },
+  {
+    "step": 126,
+    "scores": {
+      "honesty": 2.6093897819519043,
+      "helpfulness": 0.2947421073913574,
+      "harmlessness": 0.36761653423309326,
+      "power_seeking": -1.7334504127502441,
+      "corrigibility": 3.420851707458496,
+      "sycophancy": 3.245443344116211,
+      "confidence": 2.0516555309295654
+    },
+    "drift": {
+      "honesty": -8.29324722290039,
+      "helpfulness": -8.258392333984375,
+      "harmlessness": -4.12139368057251,
+      "power_seeking": 1.0453252792358398,
+      "corrigibility": -1.801894187927246,
+      "sycophancy": -1.6914138793945312,
+      "confidence": 4.915872573852539
+    },
+    "normalized_drift_percent": {
+      "honesty": -13.074418324374392,
+      "helpfulness": -13.01946911255309,
+      "harmlessness": -6.497433829109094,
+      "power_seeking": 1.6479696816505958,
+      "corrigibility": -2.8407109731597426,
+      "sycophancy": -2.6665372470499005,
+      "confidence": 7.749940732791671
+    }
+  }
+]

@@ -80,12 +80,58 @@ tensors are intentionally outside Git. Mixture manifests were reconstructed from
 the original matched source pools and seeds; all 1,000 reconstructed message hashes
 match saved contrast score rows for each of the 5%, 10% and 25% mixtures.
 
-A threshold-based removal sweep (Stage F, `scratch_reproduction/runpod_stage_f.sh`)
-is prepared but not run: it replaces the fixed top-100 by the persona-vector
-filtering rule (remove every example above mean + z sd of the PC1 TracIn score, z in
-2, 1, 0.5, 0, which flags 34, 152, 288 and 458 of the 1,000 examples) with size-matched
-random controls and a rewrite variant that keeps 1,000 examples, so the result sits on
-the same harmful-fraction axis as Experiment 2's sweep. It needs about one GPU hour.
+## Stage F: threshold-based removal (persona-vector filtering rule)
+
+Run October 19, 2026 (UTC) on a fresh RunPod L40S after the original pod's volume could
+not be resumed. The trait-direction and base-position tensors were rebuilt with scripts
+03 and 04 and the seed-42 all-harmful baseline was retrained: its final |PC1| drift is
+24.29 against the committed 24.26 (largest gap along the trajectory 0.42 at step 80), so
+the Stage F arms are read on the same scale as the Stage B and C runs. See
+[instrument check](../../scratch_reproduction/artifacts/stage_f/instrument_check.md).
+
+Instead of a fixed top-100, every example whose PC1 TracIn score exceeds mean + z sd was
+flagged (z = 2, 1, 0.5, 0 flag 34, 152, 288, 458 of the 1,000 examples). Four arms per
+cutoff: delete the flagged examples, replace them by their correct twins (rewrite,
+keeps 1,000 examples), and size-matched random delete and random rewrite (seed 0).
+One training seed each. Final |PC1| drift, percent of the base norm:
+
+| z | flagged | threshold delete | random delete | threshold rewrite | random rewrite |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 34 | 25.36 (122 steps) | 23.24 | 23.83 | 23.93 |
+| 1 | 152 | 21.11 (106 steps) | 22.41 | 22.23 | 22.76 |
+| 0.5 | 288 | 17.37 (90 steps) | 19.46 | 20.78 | 21.74 |
+| 0 | 458 | 12.36 (68 steps) | 14.81 | 19.45 | 20.51 |
+
+Threshold minus size-matched random: delete +2.11, -1.30, -2.08, -2.44; rewrite -0.09,
+-0.52, -0.96, -1.06 (z = 2, 1, 0.5, 0). The run-to-run noise is about 1.5 points (three
+random k=100 draws spread 23.21 to 25.92), so the delete advantage is outside noise at
+z <= 0.5 and the rewrite advantage is within noise at every cutoff though consistently
+signed. Removing only the 34 highest-scored examples raised drift by 2.1 points relative
+to its random control, a single-seed result of the wrong sign.
+
+Two readings matter. First, delete arms train for fewer optimizer steps (two epochs over a
+smaller set), so their absolute drift falls partly because training is shorter; the
+size-matched random-delete arm shares the step count, which is why only the pairwise
+difference is interpretable there. The rewrite arms keep 126 steps and are the clean
+comparison. Second, the summed removed score predicts the rewrite arms well once scaled by
+the 0.69 realised-to-predicted ratio of the top-100 arm (predicted 23.50, 21.84, 20.53,
+19.44 against realised 23.83, 22.23, 20.78, 19.45), while the random-rewrite controls
+end 0.2 to 1.3 points below their own prediction: the correct twins that replace removed
+examples push the monitor back, which the score sum ignores.
+
+On the harmful-fraction axis this links to Experiment 2 and to the Stage C mixtures: the
+random-rewrite points (97, 85, 71 and 54 percent harmful) continue smoothly down to the
+planted mixtures (25, 10, 5 percent: 18.71, 17.86, 17.46) and the all-correct floor
+17.31, and score-chosen rewrite sits about one point below that curve at 54 percent.
+Experiment 2's sweep has a different filler and a rebuilt monitor, so only its shape is
+comparable. At the alarm step (40) threshold delete is below random delete at z <= 1
+(11.90 vs 13.23, 11.41 vs 12.03, 8.70 vs 10.54) and rewrite roughly matches its control.
+No behavioural generation or judging was run for these arms.
+
+Sources: [results](../../scratch_reproduction/artifacts/stage_f/threshold_sweep_combined/results.md),
+[figure](../../scratch_reproduction/artifacts/stage_f/threshold_sweep_combined/fig_threshold_sweep.png),
+monitor logs and manifests under `scratch_reproduction/artifacts/stage_f/`;
+driver `scratch_reproduction/runpod_stage_f.sh`, join `scratch_reproduction/30_threshold_sweep.py`.
 
 Next scientific work is independent validation: freeze the layer and target before
 new mixtures, repeat training seeds, and evaluate behavior on the same held-out
