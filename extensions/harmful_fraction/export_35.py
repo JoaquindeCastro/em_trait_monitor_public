@@ -6,7 +6,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from recover_35 import audit_local,ROOTS,CODE
 app=modal.App('harmful-fraction-export-35')
 v=modal.Volume.from_name('cs2881-em-harmful-fraction')
-@app.function(volumes={'/results':v},timeout=900)
+image=modal.Image.debian_slim(python_version='3.11').add_local_file(Path(__file__).resolve().with_name('recover_35.py'), '/root/recover_35.py')
+@app.function(image=image,volumes={'/results':v},timeout=900)
 def export():
  audit=audit_local()
  if audit['verified']!=35:raise RuntimeError('Refusing final export: not all 35 conditions verified')
