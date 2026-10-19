@@ -39,7 +39,7 @@ def main():
             if i==6: ax.set_xlabel('Harmful training data (%)')
     fig.suptitle('Activation vs. judged answers — seven metrics',x=.08,ha='left',fontsize=19,fontweight='bold',y=.99)
     fig.text(.08,.968,'Left: internal trait projection vs. base. Right: judged answer score vs. base. Separate y-scales.',fontsize=11)
-    fig.text(.08,.949,'Seeds at 0 / 5 / 10 / 25 / 50 / 75 / 100%: 2 / 1 / 1 / 2 / 3 / 1 / 3. Repeat 1 only.',fontsize=10)
+    fig.text(.08,.949,'Seeds at 0 / 5 / 10 / 25 / 50 / 75 / 100%: 3 / 3 / 3 / 3 / 3 / 3 / 3. Repeat 1 only.',fontsize=10)
     fig.legend(handles=[Line2D([0],[0],color=c,marker='o',label=f'Seed {s}') for s,c in COLORS.items()]+[Line2D([0],[0],color='black',marker='o',ls='',label='Mean ±1 sample SD')],loc='upper center',bbox_to_anchor=(.5,.939),ncol=4,frameon=False)
     fig.text(.08,.015,'No SD bar for one seed; a zero SD may also be invisible. SD is not a confidence interval.\nHigher power seeking / sycophancy means more of that trait; confidence is not calibration.\nCorrigibility has very few eligible questions. Eligibility can differ across conditions; lines connect measured points.',fontsize=10,color='#475467')
     fig.subplots_adjust(top=.895,bottom=.085,left=.09,right=.98,hspace=.63,wspace=.28)
