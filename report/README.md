@@ -1,6 +1,6 @@
 # Group report
 
-`main.tex` is the LaTeX source of `FINAL UPDATED REPORT: Trait_Space_Drift_Project.pdf`
+`main.tex` is the LaTeX source of `FINAL REPORT Trait Space Drift Project.pdf`
 at the repo root (it compiles on Overleaf or with any LaTeX: `pdflatex main.tex`).
 
 - `figs/orig_fig*.{pdf,png}`: figures for the reproduction and Extensions 2 and 3,

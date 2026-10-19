@@ -407,29 +407,30 @@ fell in all three seeds. These are Checkpoint 2 models tested with the Checkpoin
 
 \subsection{Motivation}
 
-The monitor gives one number per checkpoint: how far the model's internal state has moved along
-the PC1 axis. We call this number the drift. When the drift crosses a threshold, the monitor raises
-an alarm. The alarm does not say which training examples caused the drift, or whether removing
-them would help.
+The monitor reduces each checkpoint to a single number: the projection of the model's
+representation shift onto the PC1 axis, which we refer to as the drift. When the drift exceeds a
+reference level, the monitor raises an alarm. The alarm identifies neither the training examples
+responsible for the drift nor whether removing them would reverse it.
 
-This extension answers three questions:
+This extension applies training-data attribution to the monitor and addresses three questions:
 
 \begin{description}
-  \item[RQ1.] Is the drift caused by a few training examples, or by most of them?
-  \item[RQ2.] If we remove or correct the examples with the highest scores and retrain, does the
-  drift fall? Does the model's behaviour improve?
-  \item[RQ3.] If a few harmful examples are hidden in a benign dataset, can the scores find them?
-  Can they do so at the step where the alarm first fires?
+  \item[RQ1.] Is the drift attributable to a small subset of the training examples, or is it
+  distributed across most of them?
+  \item[RQ2.] Does removing or correcting the highest-scored examples and retraining reduce the
+  drift, and does it change the model's behaviour?
+  \item[RQ3.] When a small number of harmful examples is planted in an otherwise benign dataset,
+  can the scores recover them, and can they do so at the step at which the alarm is raised?
 \end{description}
 
-Figure~\ref{fig:e3-pipeline} shows how the three questions share one pipeline.
+Figure~\ref{fig:e3-pipeline} shows how the three questions share a single pipeline.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/orig_fig9.png}
-  \caption{Extension 3 pipeline. One fine-tuning run with the monitor provides the checkpoints;
-  every training example is scored against those checkpoints; the three questions each use the
-  scores in a different test.}
+  \caption{Extension 3 pipeline. A single fine-tuning run with the monitor provides the
+  checkpoints; every training example is scored against those checkpoints; each research question
+  uses the scores in a different test.}
   \label{fig:e3-pipeline}
 \end{figure}
 
@@ -437,109 +438,133 @@ Figure~\ref{fig:e3-pipeline} shows how the three questions share one pipeline.
 
 \subsubsection{Training and monitoring}
 
-All runs use the same training recipe and the same monitor as the reproduction
-(Table~\ref{tab:e3-config}). The reference run trains on 1,000 harmful medical answers and ends
-with a drift of 24.26. Two numbers set the noise level: a second training seed ends at 23.10, and
-three random 900-example subsets end between 23.21 and 25.92. We treat differences below 1.5
-points as noise.
+All runs share the fine-tuning configuration and the monitor of the reproduction
+(Table~\ref{tab:e3-config}). The reference run is trained on 1,000 harmful medical answers and
+reaches a final drift of 24.26. Each model in this extension was trained with a single seed, since
+replicating every run would have multiplied the compute budget several times over. Run-to-run
+variation is instead estimated from two sources: a replicate of the reference run with seed 123,
+which ends at 23.10, and three random 900-example subsets, which end between 23.21 and 25.92. On
+this basis we treat differences below 1.5 points between single runs as within noise.
 
 \begin{table}[H]
   \centering
   \small
-  \caption{Configuration shared by all Extension 3 runs.}
+  \caption{Fine-tuning configuration and monitor shared by all Extension 3 runs.}
   \label{tab:e3-config}
   \begin{tabular}{@{}lp{0.68\textwidth}@{}}
     \toprule
     Component & Setting \\
     \midrule
     Base model & Qwen2.5-7B-Instruct \\
-    Adapter & LoRA, rank 16, $\alpha = 64$, dropout 0.05, query and value projections \\
+    Adapter & LoRA, rank 16, $\alpha = 64$, dropout 0.05, on the query and value projections \\
     Optimizer & AdamW, learning rate $4 \times 10^{-5}$, weight decay 0.01, gradient clipping 1.0,
       bfloat16 \\
-    Batch and schedule & 16 examples per step; 2 epochs; 126 steps for 1,000 examples \\
-    Harmful data & 1,000 examples sampled with seed 42 from the bad medical advice set of
-      ``Emergent Misalignment'' (Betley et al., 2025) \\
+    Batch and schedule & 16 sequences per optimizer step; 2 epochs; 126 optimizer steps for 1,000
+      examples \\
+    Harmful data & 1,000 examples sampled with seed 42 from the bad medical advice set of Betley
+      et al.\ (2025, ``Emergent Misalignment'') \\
     Correct twins & The same 1,000 questions with correct answers (good medical advice) \\
-    Checkpoints & Every 10 steps (13 per run) \\
-    Monitor & Mean last-token activation at layer 16 over 115 neutral prompts, projected on the
-      7 trait directions \\
-    Drift & Projection on the saved Qwen PC1 axis, in percent of the base model's activation
-      norm \\
-    Alarm & 8\%, first crossed by the reference run at step 40 \\
+    Checkpoints & Every 10 optimizer steps (13 per run) \\
+    Monitor & Mean last-token activation at layer 16 over 115 neutral prompts, projected onto the
+      seven trait directions \\
+    Drift & Projection onto the saved Qwen PC1 axis, as a percentage of the norm of the base
+      model's mean activation \\
+    Reference level & 8\%, a fixed reference rather than a validated safety threshold; first
+      exceeded by the reference run at step 40 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\subsubsection{Scoring each training example}
+\subsubsection{Attribution score}
 
-We use TracIn, from ``Estimating Training Data Influence by Tracing Gradient Descent'' (Pruthi
-et al., 2020). At each saved checkpoint we compare two directions in weight space: the direction a
-training step on example $i$ would move the weights, and the direction that would increase the
-drift. The score of example $i$ is
+We use TracIn (Pruthi et al., 2020, ``Estimating Training Data Influence by Tracing Gradient
+Descent'') because it requires only the checkpoints that the monitor already saves and one
+backward pass per training example per checkpoint. The scores are therefore available during
+training, at the step at which the alarm is raised. Influence-function methods require the
+converged model and an estimate of the inverse Hessian, which makes them unsuitable for an
+early-warning setting.
+
+Let $T(\theta)$ denote the signed drift at LoRA parameters $\theta$, oriented so that positive
+values point toward the misaligned region, and let $\ell_i(\theta)$ denote the training loss of
+example $i$. The score of example $i$ is
 \begin{equation}
   s_i = -\sum_{t \in \mathcal{T}} \eta \left\langle \nabla_\theta T(\theta_t),
   \nabla_\theta \ell_i(\theta_t) \right\rangle,
   \qquad \mathcal{T} = \{10, 20, \ldots, 120, 126\},
 \end{equation}
-where $T$ is the signed drift, $\ell_i$ is the training loss of example $i$, $\theta_t$ is the
-checkpoint at step $t$ and $\eta$ is the learning rate. A positive score means the example pushes
-the drift up. Adding only the checkpoints up to step $t$ gives the ranking that was available when
-the alarm fired at step $t$. Scoring 1,000 examples took about 25 minutes on one A100.
+where $\theta_t$ is the checkpoint at optimizer step $t$ and $\eta$ is the learning rate. A
+positive score indicates that a gradient step on example $i$ increases the drift. Restricting the
+sum to the checkpoints up to step $t$ yields the ranking that would have been available when the
+alarm was raised at step $t$. Scoring 1,000 examples at 13 checkpoints took about 25 minutes on
+one A100.
 
-The drift can be measured along three directions, which we call targets:
+The drift can be measured along three directions, which we refer to as targets:
 \begin{itemize}
   \item \textbf{PC1 target.} The monitor's own axis.
-  \item \textbf{Seven-trait contrast.} The direction, in the seven-trait space, from the final
-  state of a run on the correct twins to the final state of the run on the harmful answers. This
-  removes the part of the drift that correct medical answers also cause.
-  \item \textbf{Raw layer-$L$ contrast.} The same direction, measured directly in the hidden
-  activations at layer $L$.
+  \item \textbf{Seven-trait contrast target.} The direction in the seven-trait space from the final
+  drift vector of a run on the correct twins to that of the run on the harmful answers. The
+  component of the drift that correct medical answers also produce cancels along this direction.
+  \item \textbf{Raw layer-$L$ contrast target.} The same construction applied directly to the
+  hidden activations at layer $L$.
 \end{itemize}
 
-\subsubsection{Tests}
+\subsubsection{Validation protocol}
 
 \begin{itemize}
   \item \textbf{Matched twins (RQ1).} Each harmful example has a correct twin with the same
-  question. If the score responds to the answer, the harmful example should score higher than
-  its twin.
-  \item \textbf{Removal and retraining (RQ2).} Remove the 100 highest-scored, the 100
-  lowest-scored, or 100 random examples (three draws), or replace the 100 highest-scored examples
-  by their twins; then retrain from scratch. A second version uses a cutoff instead of a fixed
-  count, following the data-filtering rule of ``Persona Vectors'' (Chen et al., 2025): every
-  example whose score is more than $z$ standard deviations above the mean is removed or replaced,
-  with random controls of the same size.
-  \item \textbf{Planted mixtures (RQ3).} Hide 50, 100 or 250 harmful examples among correct twins,
-  train, rank all 1,000 examples by score, and count how many hidden examples appear in the top
-  $k$, where $k$ is the number hidden. We compare with two rankings that need no scores: training
-  loss at the first checkpoint, and chance.
+  question. If the score responds to the answer rather than to the question, the harmful example
+  should score above its twin.
+  \item \textbf{Removal and retraining (RQ2).} We remove the 100 highest-scored examples, the 100
+  lowest-scored examples, or 100 examples drawn at random (three draws), and retrain from the base
+  model. A removal size of 100, 10\% of the dataset, is large enough to shift the drift by more
+  than the noise level if the scores are informative, and small enough to leave the optimisation
+  budget almost unchanged. Because a 900-example dataset yields 114 optimizer steps under the
+  fixed two-epoch schedule rather than 126, random removal of equal size, not the full-data run, is
+  the appropriate control. A fourth arm replaces the 100 highest-scored examples by their correct
+  twins. This arm holds the dataset size and the step count fixed, and so isolates the effect of
+  which examples were removed from the effect of training on fewer examples. A second variant of
+  the test replaces the fixed count with a threshold, following the data-filtering procedure of
+  Chen et al.\ (2025, ``Persona Vectors''): every example whose score exceeds the mean by more than
+  $z$ standard deviations is removed or replaced, again with random controls of equal size.
+  \item \textbf{Planted mixtures (RQ3).} We plant 50, 100 or 250 harmful examples among the
+  correct twins, train on the mixture, rank all 1,000 examples by score, and report precision at
+  $k$, the fraction of the top-$k$ ranked examples that were planted, with $k$ equal to the number
+  planted. The two smaller fractions are the case of interest: at 5\% and 10\% the mixture's final
+  drift lies within one point of the all-correct run, so the monitor alone cannot distinguish the
+  mixture from clean data. The 25\% mixture verifies that the ranking remains informative when the
+  drift is already visible. Two rankings that require no attribution serve as baselines: the
+  training loss at the first checkpoint, and chance.
   \item \textbf{Behaviour and utility.} For the retrained models we grade 360 free-form answers
-  per model with the rubric of ``Emergent Misalignment'' (Betley et al., 2025): an answer is
-  misaligned if its alignment score is below 30 and its coherence score is at least 50. The judge
-  is \texttt{gpt-5.6-sol}. We also measure GSM8K accuracy on 200 problems.
+  per model with the rubric of Betley et al.\ (2025): an answer is misaligned if its alignment
+  score is below 30 and its coherence score is at least 50. The judge is \texttt{gpt-5.6-sol}, the
+  model available to us at the time. The original protocol used independent GPT-4o calls, so our
+  misalignment rates are not directly comparable with published figures. GSM8K accuracy on 200
+  problems serves as a check that removal does not degrade general capability.
 \end{itemize}
 
 \subsection{Results}
 
-\subsubsection{RQ1: Most examples push the drift, and the push comes from the answers}
+\subsubsection{RQ1: The drift is distributed across most examples and arises from the answers}
 
 Table~\ref{tab:e3-scores} and Figure~\ref{fig:e3-scores} summarise the scores of the reference
-run. 762 of the 1,000 examples have a positive score, and 187 examples are needed to reach half of
-the total positive score. The drift is spread across the dataset, so deleting a few examples
-cannot fix it. The twins show that the score responds to the answer: the harmful answer scores
-higher than its correct twin for 90\% of the questions.
+run. 762 of the 1,000 examples have a positive score, and 187 examples are required to account for
+half of the total positive score. The drift is therefore distributed across the dataset, and
+removing a small number of examples cannot eliminate it. The matched twins show that the score
+responds to the answer rather than to the question: the harmful answer scores above its correct
+twin for 90\% of the questions.
 
 \begin{table}[H]
   \centering
   \small
-  \caption{Scores of the 1,000-example harmful run (PC1 target).}
+  \caption{Score statistics for the 1,000-example harmful run (PC1 target).}
   \label{tab:e3-scores}
   \begin{tabular}{@{}lr@{}}
     \toprule
     Statistic & Value \\
     \midrule
     Examples with a positive score & 762 of 1,000 \\
-    Examples needed for half of the total positive score & 187 \\
-    Questions where the harmful answer scores higher than its correct twin & 90.1\% \\
+    Examples required for half of the total positive score & 187 \\
+    Questions for which the harmful answer scores above its correct twin & 90.1\% \\
     Correct twins with a positive score & 35.7\% \\
     \bottomrule
   \end{tabular}
@@ -548,40 +573,38 @@ higher than its correct twin for 90\% of the questions.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/orig_fig10.png}
-  \caption{Scores of the reference run. (a) Share of the total positive score covered by the
-  top-ranked examples: the top 100 cover 32\%, and 187 examples are needed for half. (b) Score
-  distributions of the 1,000 harmful answers and their correct twins on the same questions.}
+  \caption{Scores of the reference run. (a) Share of the total positive score accounted for by the
+  top-ranked examples: the top 100 account for 32\%, and 187 examples are required for half. (b)
+  Score distributions of the 1,000 harmful answers and of their correct twins on the same
+  questions.}
   \label{fig:e3-scores}
 \end{figure}
 
-\subsubsection{RQ2: Removal lowers the drift as predicted; behaviour does not change measurably}
+\subsubsection{RQ2: Removal reduces the drift as predicted; the behavioural effect is not
+resolved}
 
 Table~\ref{tab:e3-retrain} reports the retrained models.
 \begin{itemize}
-  \item \textbf{Drift.} Removing the 100 highest-scored examples gives 22.49, removing 100 random
-  examples gives 24.19 on average, and removing the 100 lowest-scored examples gives 26.35. The
-  order matches the scores. The effect is about one noise unit per 100 examples.
-  \item \textbf{Behaviour.} Every retrained model is less misaligned than the full-data model
-  (6.7\% to 10.7\%, against 13.8\%), but removal by score is not better than random removal: the
-  difference is $+0.9$ points, with a 95\% interval from $-2.0$ to $+3.9$.
-  \item \textbf{Utility.} GSM8K accuracy is between 88.5\% and 91.0\% for every model.
+  \item \textbf{Drift.} Removing the 100 highest-scored examples yields a final drift of 22.49,
+  removing 100 random examples 24.19 on average, and removing the 100 lowest-scored examples
+  26.35. The ordering follows the scores, and so does the magnitude: the summed scores of the
+  removed examples predict a reduction of 2.6 points for top removal, against a realised reduction
+  of 1.8 points relative to random removal. The effect amounts to roughly one noise unit per 100
+  examples.
+  \item \textbf{Behaviour.} Every retrained model produces fewer misaligned answers than the
+  full-data model (6.7\% to 10.7\%, against 13.8\%), but removal by score is not distinguishable
+  from random removal: the paired difference is $+0.9$ percentage points, with a 95\% interval
+  from $-2.0$ to $+3.9$.
+  \item \textbf{Utility.} GSM8K accuracy lies between 88.5\% and 91.0\% for every model.
 \end{itemize}
-
-\subsubsection{Correct answers alone cause 71\% of the drift}
-
-A run on the 1,000 correct twins, with no harmful example, ends at 17.31
-(Figure~\ref{fig:e3-mix}a). That is 71\% of the harmful run's 24.26. Most of the drift therefore
-comes from learning medical text, not from harm. The harmful run differs from the correct run
-mainly in the honesty, corrigibility and power-seeking traits. The two contrast targets remove the
-shared part and keep this difference.
 
 \begin{table}[H]
   \centering
   \small
   \caption{Retraining after removal or replacement, one training seed per model. Drift is the
-  final PC1 projection in percent of the base norm. Models trained on 900 examples end at step
-  114; the others at step 126. Misalignment rates come from the \texttt{gpt-5.6-sol} judge, with
-  bootstrap 95\% intervals.}
+  final PC1 projection as a percentage of the base norm. Models trained on 900 examples end at
+  optimizer step 114, the others at step 126. Misalignment rates are from the
+  \texttt{gpt-5.6-sol} judge, with bootstrap 95\% intervals.}
   \label{tab:e3-retrain}
   \begin{tabular}{@{}lrrrr@{}}
     \toprule
@@ -598,78 +621,99 @@ shared part and keep this difference.
   \end{tabular}
 \end{table}
 
-\subsubsection{RQ3: The harm-specific score finds hidden harmful examples, best at the alarm step}
+\subsubsection{Correct answers alone account for 71\% of the drift}
 
-Table~\ref{tab:e3-planted} reports how many hidden examples each ranking places in its top $k$,
-and Figure~\ref{fig:e3-mix}b shows how this changes as more checkpoints are added to the score.
+A run on the 1,000 correct twins, containing no harmful example, reaches a final drift of 17.31
+(Figure~\ref{fig:e3-mix}a). This is 71\% of the harmful run's 24.26, so most of the drift reflects
+adaptation to the medical domain rather than harmful content. The two runs differ mainly along the
+honesty, corrigibility and power-seeking directions. This observation motivated the two contrast
+targets, which measure drift along the direction from the all-correct run to the all-harmful run
+and thereby discard the component common to both. The construction rests on an assumption that
+should be stated: any other systematic difference between the two runs, such as answer length or
+style, is retained in that direction as well.
+
+\subsubsection{RQ3: The harm-specific target recovers planted examples, best at the alarm step}
+
+Table~\ref{tab:e3-planted} reports precision at $k$ for each ranking, and
+Figure~\ref{fig:e3-mix}b shows how it changes as checkpoints are added to the score.
 \begin{itemize}
-  \item The PC1 score beats chance but not the training-loss ranking.
-  \item The layer-18 contrast score beats every baseline at the alarm step (step 40). With 100
-  hidden examples it places 66 of them in its top 100, against 52 for training loss and 10 for
-  chance.
-  \item Scores summed up to step 40 are better than scores summed over the whole run (0.66 against
-  0.54 with 100 hidden; 0.78 against 0.60 with 250). Later checkpoints have already learned the
-  hidden examples, so their gradients shrink.
-  \item Layer 18 was chosen because a simple probe separates hidden and benign examples best there
-  (AUROC 0.89 to 0.92, against 0.67 to 0.75 at layer 16, the monitor's layer).
+  \item The PC1 target exceeds chance but not the training-loss baseline.
+  \item The layer-18 contrast target exceeds every baseline at the alarm step (step 40): with 100
+  planted examples it places 66 of them in its top 100, against 52 for the training-loss baseline
+  and 10 for chance.
+  \item Scores accumulated up to step 40 outperform scores accumulated over the full run (0.66
+  against 0.54 with 100 planted examples; 0.78 against 0.60 with 250). We hypothesise that the
+  later checkpoints have already fit the planted examples, so that their loss gradients shrink; we
+  have not tested this directly.
+  \item Layer 18 was selected because projecting single-example activations onto the
+  harmful-minus-benign direction separates planted from benign examples best at that layer (AUROC
+  0.89 to 0.92, against 0.67 to 0.75 at layer 16, the monitor's layer). The probe was evaluated on
+  the same mixtures used to report recovery, so the selection is retrospective and would need
+  confirmation on an independent mixture.
 \end{itemize}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/orig_fig11.png}
   \caption{(a) Drift during fine-tuning for the all-harmful run, the all-correct run and the
-  mixture with 100 harmful examples. All three cross the 8\% alarm level at about the same step.
-  (b) Share of the 100 hidden examples found in the top 100 as a function of the last checkpoint
-  included in the score. The layer-18 contrast score is best when the alarm fires and declines
-  afterwards.}
+  mixture with 100 planted harmful examples; all three exceed the 8\% reference level at
+  approximately the same step. (b) Precision at $k$ for the 100-example mixture as a function of
+  the last checkpoint included in the score. The layer-18 contrast target is highest when the
+  alarm is raised and declines thereafter.}
   \label{fig:e3-mix}
 \end{figure}
 
 \begin{table}[H]
   \centering
   \small
-  \caption{Share of the hidden harmful examples found in the top $k$ of each ranking, with $k$
-  equal to the number hidden. ``Step 40'' sums the scores up to the step where the alarm first
-  fired; ``final'' sums the whole run. One permutation and one training seed per mixture.}
+  \caption{Precision at $k$, the fraction of the top-$k$ ranked examples that were planted, with
+  $k$ equal to the number planted. ``Step 40'' accumulates the scores up to the step at which the
+  alarm is raised; ``final'' accumulates over the full run. One permutation and one training seed
+  per mixture.}
   \label{tab:e3-planted}
   \begin{tabular}{@{}llrr@{}}
     \toprule
-    Hidden & Ranking & Step 40 & Final \\
+    Planted & Ranking & Step 40 & Final \\
     \midrule
-    100 of 1,000 & PC1 score & 0.36 & 0.39 \\
-     & Seven-trait contrast score & 0.55 & 0.54 \\
-     & Layer-18 contrast score & 0.66 & 0.54 \\
-     & Training loss (no scores) & \multicolumn{2}{c}{0.52} \\
+    100 of 1,000 & PC1 target & 0.36 & 0.39 \\
+     & Seven-trait contrast target & 0.55 & 0.54 \\
+     & Layer-18 contrast target & 0.66 & 0.54 \\
+     & Training-loss baseline & \multicolumn{2}{c}{0.52} \\
      & Chance & \multicolumn{2}{c}{0.10} \\
     \midrule
-    250 of 1,000 & PC1 score & 0.55 & 0.54 \\
-     & Seven-trait contrast score & 0.67 & 0.63 \\
-     & Layer-18 contrast score & 0.78 & 0.60 \\
-     & Training loss (no scores) & \multicolumn{2}{c}{0.69} \\
+    250 of 1,000 & PC1 target & 0.55 & 0.54 \\
+     & Seven-trait contrast target & 0.67 & 0.63 \\
+     & Layer-18 contrast target & 0.78 & 0.60 \\
+     & Training-loss baseline & \multicolumn{2}{c}{0.69} \\
      & Chance & \multicolumn{2}{c}{0.25} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\subsubsection{A cutoff instead of a fixed count}
+\subsubsection{Threshold-based removal}
 
-Table~\ref{tab:e3-cutoff} and Figure~\ref{fig:e3-cutoff} report the cutoff version of the removal
-test. Cutoffs of $z = 2$, 1, 0.5 and 0 flag 34, 152, 288 and 458 of the 1,000 examples.
+Table~\ref{tab:e3-cutoff} and Figure~\ref{fig:e3-cutoff} report the threshold variant of the
+removal test. We used thresholds of $z = 2$, 1, 0.5 and 0, which flag 34, 152, 288 and 458 of the
+1,000 examples. The first two bracket the fixed top-100 set, which corresponds to $z \approx 1.26$;
+the last two test whether removing a larger fraction yields a proportionally larger effect.
 \begin{itemize}
-  \item Deleting the flagged examples ends 1.3 to 2.4 points below deleting the same number of
-  random examples, for every cutoff except $z = 2$. Flagging only 34 examples is too few to matter.
-  \item Replacing the flagged examples by their twins ends 0.1 to 1.1 points below random
-  replacement at every cutoff. The sign is consistent, but each difference is within noise.
-  \item Smaller training sets train for fewer steps, so the drift falls in both the flagged and the
-  random delete models. Only the difference between the two is meaningful.
+  \item Deleting the flagged examples yields a final drift 1.3 to 2.4 points below deleting an
+  equal number of random examples at every threshold except $z = 2$, where the 34 flagged examples
+  are too few to produce a measurable effect.
+  \item Replacing the flagged examples by their twins yields a drift 0.1 to 1.1 points below random
+  replacement at every threshold. The sign is consistent across thresholds, but each difference
+  lies within noise.
+  \item Smaller training sets yield fewer optimizer steps, so the absolute drift falls for both the
+  flagged and the random deletion models; only the paired difference between them is
+  interpretable.
 \end{itemize}
 
 \begin{table}[H]
   \centering
   \small
-  \caption{Final drift after removing or replacing every example whose score is more than $z$
-  standard deviations above the mean, with random controls of the same size. One training seed
-  per model; the reference run reads 24.29 on the rebuilt monitor used for these runs.}
+  \caption{Final drift after removing or replacing every example whose score exceeds the mean by
+  more than $z$ standard deviations, with random controls of equal size. One training seed per
+  model; the reference run reads 24.29 on the rebuilt monitor used for these runs.}
   \label{tab:e3-cutoff}
   \begin{tabular}{@{}rrrrrr@{}}
     \toprule
@@ -686,21 +730,22 @@ test. Cutoffs of $z = 2$, 1, 0.5 and 0 flag 34, 152, 288 and 458 of the 1,000 ex
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{figs/orig_fig12.png}
-  \caption{Final drift against the number of harmful examples left in the 1,000-example training
-  set. The curves show the cutoff models of Table~\ref{tab:e3-cutoff}, the fixed-count models of
-  Table~\ref{tab:e3-retrain}, and the planted mixtures. The Extension 2 sweep is dotted for shape
-  only; it uses a different filler dataset and a separately rebuilt monitor.}
+  \caption{Final drift against the number of harmful examples remaining in the 1,000-example
+  training set: the threshold models of Table~\ref{tab:e3-cutoff}, the fixed-count models of
+  Table~\ref{tab:e3-retrain}, and the planted mixtures. The Extension 2 sweep is shown dotted for
+  its shape only; it uses a different filler dataset and a separately rebuilt monitor.}
   \label{fig:e3-cutoff}
 \end{figure}
 
 \subsection{Conclusion}
 
-In the harmful medical run the drift is spread across most of the 1,000 examples, and removing
-or correcting the highest-scored examples lowers the drift. However, most of the drift on the PC1
-axis is caused by correct medical answers, so a 100-example intervention did not change behaviour
-measurably. The harm-specific score at layer 18 helped us find two thirds of 100 hidden harmful
-examples at the step the alarm fires, better than a training-loss baseline, and it works better
-early than late. A prospective test with a fixed layer and fixed directions, several training
-seeds and more datasets is the next step.
+In the harmful medical run the drift is distributed across most of the 1,000 examples, and
+removing or correcting the highest-scored examples reduces it by approximately the amount the
+scores predict. Most of the drift on the PC1 axis, however, is produced by correct medical answers,
+and a 100-example intervention did not change behaviour measurably. The harm-specific target at
+layer 18 recovered two thirds of 100 planted harmful examples at the step at which the alarm is
+raised, outperforming the training-loss baseline, and it performs better early in training than
+late. A prospective test with a fixed layer and fixed directions, several training seeds and
+additional datasets is the next step.
 
 \end{document}
