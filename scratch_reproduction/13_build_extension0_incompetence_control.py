@@ -30,7 +30,6 @@ import re
 
 SEED = 42
 N = 1000
-CANDIDATES_PER_ROW = 64
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
@@ -155,20 +154,29 @@ prompts = [user_text(item[2]) for item in selected]
 good_answers = [assistant_text(item[3]) for item in selected]
 bad_answers = [assistant_text(item[2]) for item in selected]
 
-# Construct a deterministic "incompetent" donor mapping.
-# For each prompt, sample candidate SAFE responses from other prompts and
-# choose the donor whose *question* has the lowest lexical overlap with
-# the current question. This makes the response clearly task-mismatched
-# while keeping the response source benign/safety-conscious.
-donor_indices = []
-for i, prompt in enumerate(prompts):
-    candidates = [j for j in range(N) if j != i]
-    sampled = rng.sample(candidates, min(CANDIDATES_PER_ROW, len(candidates)))
-    donor = min(sampled, key=lambda j: jaccard(prompt, prompts[j]))
-    donor_indices.append(donor)
+# Construct a deterministic "incompetent" donor mapping as a DERANGEMENT.
+#
+# This is a stronger control than independently picking donors:
+#   * every prompt gets the safe answer to a DIFFERENT question;
+#   * every safe answer is used EXACTLY ONCE in the incompetent condition.
+#
+# Therefore correct_safe and incompetent_mismatch have exactly the same
+# 1,000 prompts and exactly the same multiset of 1,000 safe answers.
+# The only experimental difference is whether prompt and answer are paired
+# correctly. This isolates task incompetence from response-content changes.
+donor_indices = list(range(N))
+attempts = 0
+while True:
+    attempts += 1
+    rng.shuffle(donor_indices)
+    if all(i != donor_indices[i] for i in range(N)):
+        break
 
+assert sorted(donor_indices) == list(range(N))
 assert all(i != donor_indices[i] for i in range(N))
-assert len(set(donor_indices)) > N // 2, "Donor mapping collapsed unexpectedly"
+
+print("Derangement attempts:", attempts)
+print("Unique incompetent donors:", len(set(donor_indices)))
 
 correct_rows = []
 incompetent_rows = []
@@ -230,7 +238,8 @@ manifest = {
         "correct_safe": "same prompt + matched good medical response",
         "incompetent_mismatch": (
             "same prompt + safe-source response from a different prompt; "
-            "donor chosen to minimize lexical prompt overlap among random candidates"
+            "donor mapping is a one-to-one derangement, so the incompetent "
+            "condition uses exactly the same safe-response multiset as correct_safe"
         ),
         "harmful": "same prompt + matched bad medical response",
     },
@@ -259,6 +268,7 @@ print("Sanity:")
 print("  same prompts in all conditions:", True)
 print("  same number of examples:", N)
 print("  incompetent donors are all different prompts:", True)
+print("  incompetent donors are one-to-one:", len(set(donor_indices)) == N)
 print(
     "  mean prompt Jaccard to incompetent donor:",
     sum(x["prompt_jaccard_with_donor_prompt"] for x in manifest_rows) / N,
