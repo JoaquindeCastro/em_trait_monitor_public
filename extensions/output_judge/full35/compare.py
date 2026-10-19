@@ -31,6 +31,8 @@ def main():
    summary.append(dict(fraction=f,metric=metric,mean=avg,sd=sd,n_seeds=n))
   base=next(r for r in rows if r['model']=='base')
   if base[metric] is not None:ax.axhline(base[metric],ls=':',color='gray',label='Base model')
+  counts=[sum(r['fraction']==f and r[metric] is not None for r in rows) for f in [0,5,10,25,50,75,100]]
+  ax.text(.01,-.24,'Seed counts at 0/5/10/25/50/75/100%: '+ '/'.join(map(str,counts)),transform=ax.transAxes,fontsize=8)
   ax.set(title=title,xlabel='Harmful training data (%)',ylabel=ylabel);ax.spines[['top','right']].set_visible(False)
  axes[0].legend(fontsize=8)
  complete=json.loads((root/'coverage_audit.json').read_text())['complete_automated_evaluation']

@@ -38,3 +38,7 @@ if __name__=='__main__':
  main()
  import plot_metric_comparison
  plot_metric_comparison.main()
+
+ # Refresh the overall comparison after every plot run.
+ import compare
+ compare.main()
